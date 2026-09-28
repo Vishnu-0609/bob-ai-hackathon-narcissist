@@ -37,8 +37,8 @@ _BODY_FEATURES = {
 _JEWELLERY_ITEMS = ["ring", "watch", "chain", "bracelet", "necklace", "bangle", "earring"]
 
 _SEX_KEYWORDS = {
-    "MALE": ["boy", "man", "male", "he", "his", "brother", "son", "father", "uncle", "husband"],
-    "FEMALE": ["girl", "woman", "female", "she", "her", "sister", "daughter", "mother", "aunt", "wife"],
+    "FEMALE": ["girl", "woman", "female", r"\bshe\b", r"\bher\b", "sister", "daughter", "mother", "aunt", "wife"],
+    "MALE": [r"\bboy\b", r"\bman\b", r"\bmale\b", r"\bhe\b", r"\bhis\b", "brother", r"\bson\b", "father", "uncle", "husband"],
 }
 
 
@@ -53,9 +53,10 @@ def _extract_nl_features(query: str) -> Dict[str, Any]:
     lower = query.lower()
     filters: Dict[str, Any] = {}
 
-    # --- Sex ---
-    for sex, keywords in _SEX_KEYWORDS.items():
-        if any(k in lower for k in keywords):
+    # --- Sex (FEMALE checked first to avoid "woman" being caught by "man" substring) ---
+    for sex in ("FEMALE", "MALE"):
+        keywords = _SEX_KEYWORDS[sex]
+        if any(re.search(k, lower) for k in keywords):
             filters["sex"] = sex
             break
 
@@ -93,33 +94,34 @@ def _extract_nl_features(query: str) -> Dict[str, Any]:
             pattern = rf"\b{color}\s+{item}\b"
             if re.search(pattern, lower):
                 clothing_terms.append(f"{color} {item}")
-        # color alone next to a clothing word within 4 words
+        # color alone next to a clothing word — loose pair
         if color in lower:
             for item in _CLOTHING_ITEMS:
-                if item in lower and color not in [t.split()[0] for t in clothing_terms]:
-                    # colour and item both mentioned, treat as loose pair
+                if re.search(rf"\b{item}\b", lower) and color not in [t.split()[0] for t in clothing_terms]:
                     clothing_terms.append(f"{color} {item}")
                     break
 
     # Standalone clothing items with no colour
     for item in _CLOTHING_ITEMS:
-        if item in lower and not any(item in t for t in clothing_terms):
+        if re.search(rf"\b{item}\b", lower) and not any(item in t for t in clothing_terms):
             clothing_terms.append(item)
 
     if clothing_terms:
-        filters["clothing_keywords"] = list(dict.fromkeys(clothing_terms))  # deduplicate preserving order
+        filters["clothing_keywords"] = list(dict.fromkeys(clothing_terms))
 
     # --- Scars / Tattoos / Birthmarks ---
     for keyword, field in _BODY_FEATURES.items():
         if keyword in lower:
-            # try to capture body location after keyword
             loc_m = re.search(rf"{keyword}\s*(?:on|at|near|across)?\s*([a-z\s]{{3,25}})", lower)
             loc = loc_m.group(1).strip() if loc_m else None
-            filters.setdefault("body_marks", []).append({"type": field, "location": loc})
+            # Trim location if it bleeds into unrelated words
+            if loc:
+                loc = re.split(r"\s+(?:around|about|age|year|wearing|with|and)", loc)[0].strip()
+            filters.setdefault("body_marks", []).append({"type": field, "location": loc or None})
 
-    # --- Jewellery ---
+    # --- Jewellery (word-boundary safe) ---
     for j in _JEWELLERY_ITEMS:
-        if j in lower:
+        if re.search(rf"\b{j}\b", lower):
             filters.setdefault("jewellery_keywords", []).append(j)
 
     # --- Blood group ---
@@ -130,7 +132,7 @@ def _extract_nl_features(query: str) -> Dict[str, Any]:
         filters["blood_group"] = f"{g}{sign}"
 
     # --- Location keyword ---
-    loc_keywords = ["near", "at", "from", "around", "location", "found at", "recovered at"]
+    loc_keywords = ["near", "at", "from", "around", "location", "found at", "recovered at", "last seen near", "last seen at"]
     for lk in loc_keywords:
         loc_m = re.search(rf"{lk}\s+([a-z\s\-]{{3,40}}?)(?:\s*,|\s*$|\s+with|\s+wearing|\s+aged)", lower)
         if loc_m:
