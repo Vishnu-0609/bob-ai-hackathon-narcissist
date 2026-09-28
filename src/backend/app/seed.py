@@ -59,9 +59,10 @@ def seed_database(db: Session):
             details={"name": inc.name, "location": inc.location},
         )
 
-    # 3. Check if synthetic AM and PM exist
+    # 3. Optional Synthetic AM and PM seeding (only if SEED_SYNTHETIC_DATA is explicitly enabled)
+    seed_synthetic = os.getenv("SEED_SYNTHETIC_DATA", "false").lower() in ("true", "1", "yes")
     existing_am_count = db.query(AMCase).filter(AMCase.incident_id == inc.id).count()
-    if existing_am_count == 0:
+    if seed_synthetic and existing_am_count == 0:
         data_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data")
         am_file = os.path.join(data_dir, "synthetic_am.json")
         pm_file = os.path.join(data_dir, "synthetic_pm.json")

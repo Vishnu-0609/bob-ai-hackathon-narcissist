@@ -13,47 +13,74 @@ from app.services.bob_client import bob_client
 # Natural-language feature extraction helpers
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Natural-language feature extraction helpers
+# ---------------------------------------------------------------------------
+
 _COLORS = [
     "red", "blue", "green", "yellow", "black", "white", "grey", "gray",
     "brown", "orange", "pink", "purple", "violet", "navy", "maroon",
-    "beige", "cream", "khaki", "olive", "cyan", "turquoise", "gold", "silver",
+    "beige", "cream", "khaki", "olive", "cyan", "turquoise", "gold", "silver", "metallic", "dark blue", "light blue"
 ]
 
 _CLOTHING_ITEMS = [
-    "shirt", "t-shirt", "tshirt", "top", "blouse", "kurta", "kurti",
+    "shirt", "t-shirt", "tshirt", "tee", "polo", "polo shirt", "top", "blouse", "kurta", "kurti",
     "jeans", "pants", "trousers", "shorts", "skirt", "saree", "sari",
     "jacket", "coat", "hoodie", "sweater", "dress", "salwar", "dhoti",
-    "shoes", "sandals", "chappal", "socks", "cap", "hat", "dupatta",
+    "shoe", "shoes", "sneaker", "sneakers", "trainer", "trainers", "boot", "boots", "footwear",
+    "sandal", "sandals", "chappal", "socks", "cap", "hat", "dupatta", "suit", "blazer", "vest", "moncler", "chinos", "denim"
 ]
 
 _BODY_FEATURES = {
     "scar": "scars",
+    "scars": "scars",
     "burn": "scars",
+    "burns": "scars",
     "birthmark": "birthmarks",
+    "birthmarks": "birthmarks",
     "mole": "birthmarks",
+    "moles": "birthmarks",
     "tattoo": "tattoos",
+    "tattoos": "tattoos",
+    "ink": "tattoos",
 }
 
-_JEWELLERY_ITEMS = ["ring", "watch", "chain", "bracelet", "necklace", "bangle", "earring"]
+_JEWELLERY_ITEMS = [
+    "ring", "rings", "watch", "watches", "wristwatch", "wristwatches", "analog", "digital", "timepiece", "chronograph",
+    "chain", "chains", "bracelet", "bracelets", "necklace", "necklaces", "bangle", "bangles",
+    "earring", "earrings", "stud", "studs", "pendant", "pendants", "anklet", "cuff", "strap", "case", "circular", "bezel"
+]
 
 _SEX_KEYWORDS = {
     "FEMALE": ["girl", "woman", "female", r"\bshe\b", r"\bher\b", "sister", "daughter", "mother", "aunt", "wife"],
     "MALE": [r"\bboy\b", r"\bman\b", r"\bmale\b", r"\bhe\b", r"\bhis\b", "brother", r"\bson\b", "father", "uncle", "husband"],
 }
 
+_STOP_WORDS = {
+    "a", "an", "the", "person", "someone", "individual", "with", "having", "wearing",
+    "of", "and", "or", "in", "on", "at", "about", "around", "near", "find", "search",
+    "show", "me", "look", "for", "please", "case", "cases", "who", "is", "body", "record", "records"
+}
+
 
 def _extract_nl_features(query: str) -> Dict[str, Any]:
     """
-    Parses a free-text natural language query into structured search filters.
-    Handles queries like:
-      - "find a red shirt boy"
-      - "look for woman with tattoo on arm around 30 years"
-      - "man with scar wearing blue jeans, around 160cm"
+    Parses a free-text natural language query into structured search filters and token representations.
+    Handles complex forensic queries like:
+      - "a person with Analog wristwatch with a gold-colored circular casewith grey shoe"
+      - "find a red shirt boy around 25 years"
+      - "look for woman with tattoo on left forearm wearing Moncler polo"
     """
-    lower = query.lower()
+    # Normalize concatenated prepositions like 'casewith' -> 'case with'
+    normalized = re.sub(r"([a-zA-Z]+)(with|and|in|on|at|near)([a-zA-Z]+)", r"\1 \2 \3", query, flags=re.IGNORECASE)
+    lower = normalized.lower()
     filters: Dict[str, Any] = {}
 
-    # --- Sex (FEMALE checked first to avoid "woman" being caught by "man" substring) ---
+    # Extract all meaningful tokens for fuzzy and semantic intersection
+    all_tokens = [t for t in re.findall(r"[a-zA-Z0-9]+", lower) if t not in _STOP_WORDS and len(t) > 1]
+    filters["tokens"] = all_tokens
+
+    # --- Sex ---
     for sex in ("FEMALE", "MALE"):
         keywords = _SEX_KEYWORDS[sex]
         if any(re.search(k, lower) for k in keywords):
@@ -61,7 +88,6 @@ def _extract_nl_features(query: str) -> Dict[str, Any]:
             break
 
     # --- Age ---
-    # "around 30", "30 years", "30-35", "aged 30"
     range_m = re.search(r"(\d{1,2})\s*[-–to]+\s*(\d{1,2})\s*(?:years|yrs|yr)?", lower)
     single_m = re.search(r"(?:around|about|aged?|age)\s*(\d{1,2})\s*(?:years|yrs|yr)?", lower)
     bare_age = re.search(r"\b(\d{1,2})\s*(?:years?|yrs?)\s+(?:old)?", lower)
@@ -87,21 +113,19 @@ def _extract_nl_features(query: str) -> Dict[str, Any]:
         inch = int(ft_m.group(2) or ft_m.group(4) or 0)
         filters["height_cm"] = round((ft * 12 + inch) * 2.54, 1)
 
-    # --- Clothing (color + item combinations) ---
+    # --- Clothing & Footwear terms ---
     clothing_terms: List[str] = []
     for color in _COLORS:
         for item in _CLOTHING_ITEMS:
             pattern = rf"\b{color}\s+{item}\b"
             if re.search(pattern, lower):
                 clothing_terms.append(f"{color} {item}")
-        # color alone next to a clothing word — loose pair
-        if color in lower:
+        if re.search(rf"\b{color}\b", lower):
             for item in _CLOTHING_ITEMS:
-                if re.search(rf"\b{item}\b", lower) and color not in [t.split()[0] for t in clothing_terms]:
+                if re.search(rf"\b{item}\b", lower) and not any(t.startswith(color) for t in clothing_terms):
                     clothing_terms.append(f"{color} {item}")
                     break
 
-    # Standalone clothing items with no colour
     for item in _CLOTHING_ITEMS:
         if re.search(rf"\b{item}\b", lower) and not any(item in t for t in clothing_terms):
             clothing_terms.append(item)
@@ -109,20 +133,22 @@ def _extract_nl_features(query: str) -> Dict[str, Any]:
     if clothing_terms:
         filters["clothing_keywords"] = list(dict.fromkeys(clothing_terms))
 
-    # --- Scars / Tattoos / Birthmarks ---
+    # --- Scars / Tattoos / Marks ---
     for keyword, field in _BODY_FEATURES.items():
         if keyword in lower:
             loc_m = re.search(rf"{keyword}\s*(?:on|at|near|across)?\s*([a-z\s]{{3,25}})", lower)
             loc = loc_m.group(1).strip() if loc_m else None
-            # Trim location if it bleeds into unrelated words
             if loc:
                 loc = re.split(r"\s+(?:around|about|age|year|wearing|with|and)", loc)[0].strip()
             filters.setdefault("body_marks", []).append({"type": field, "location": loc or None})
 
-    # --- Jewellery (word-boundary safe) ---
+    # --- Jewellery & Watch Accessories ---
+    jewellery_terms: List[str] = []
     for j in _JEWELLERY_ITEMS:
         if re.search(rf"\b{j}\b", lower):
-            filters.setdefault("jewellery_keywords", []).append(j)
+            jewellery_terms.append(j)
+    if jewellery_terms:
+        filters["jewellery_keywords"] = list(dict.fromkeys(jewellery_terms))
 
     # --- Blood group ---
     bg_m = re.search(r"\b(a|b|ab|o)\s*([+-]|positive|negative)\b", lower)
@@ -150,6 +176,80 @@ def _json_contains_keyword(json_field: Any, keywords: List[str]) -> bool:
         return False
     text = json.dumps(json_field).lower()
     return any(k.lower() in text for k in keywords)
+
+
+def _score_record_against_query(
+    record: Any,
+    filters: Dict[str, Any],
+    query_tokens: List[str],
+) -> Tuple[float, List[str]]:
+    """
+    Computes a forensic relevance score (0.0 to 100.0) and human-readable match explanations.
+    Evaluates demographics, clothing extractions, jewellery, tattoos, scars, and photo notes.
+    """
+    score = 0.0
+    reasons = []
+
+    clothing_str = " ".join([c.get("description", str(c)) if isinstance(c, dict) else str(c) for c in (record.clothing or [])]).lower()
+    jewellery_str = " ".join([j.get("description", str(j)) if isinstance(j, dict) else str(j) for j in (record.jewellery or [])]).lower()
+    tattoos_str = " ".join([t.get("description", str(t)) if isinstance(t, dict) else str(t) for t in (record.tattoos or [])]).lower()
+    scars_str = " ".join([s.get("description", str(s)) if isinstance(s, dict) else str(s) for s in (record.scars or [])] + [b.get("description", str(b)) if isinstance(b, dict) else str(b) for b in (record.birthmarks or [])]).lower()
+    phys_str = (record.physical_description or "").lower()
+
+    # 1. Jewellery match
+    j_matches = []
+    if filters.get("jewellery_keywords"):
+        for jk in filters["jewellery_keywords"]:
+            if jk in jewellery_str:
+                j_matches.append(jk)
+    # Also check full token matches in jewellery
+    for t in query_tokens:
+        if t in ["watch", "wristwatch", "analog", "circular", "gold", "strap", "case"] and t in jewellery_str and t not in j_matches:
+            j_matches.append(t)
+
+    if j_matches:
+        j_weight = min(40.0, 15.0 + (len(set(j_matches)) * 7.0))
+        score += j_weight
+        reasons.append(f"Jewellery/Watch matching ({', '.join(set(j_matches))})")
+
+    # 2. Clothing & Footwear match
+    c_matches = []
+    if filters.get("clothing_keywords"):
+        for ck in filters["clothing_keywords"]:
+            if any(part in clothing_str for part in ck.split()):
+                c_matches.append(ck)
+    for t in query_tokens:
+        if t in ["shoe", "shoes", "sneaker", "sneakers", "grey", "gray", "white", "black", "blue", "moncler", "polo", "shirt", "trousers", "jeans"] and t in clothing_str and t not in c_matches:
+            c_matches.append(t)
+
+    if c_matches:
+        c_weight = min(40.0, 15.0 + (len(set(c_matches)) * 6.0))
+        score += c_weight
+        reasons.append(f"Clothing/Footwear matching ({', '.join(set(c_matches))})")
+
+    # 3. Tattoos & Marks match
+    t_matches = []
+    for t in query_tokens:
+        if t in tattoos_str or t in scars_str:
+            t_matches.append(t)
+    if t_matches:
+        score += 20.0
+        reasons.append(f"Marks/Tattoos matching ({', '.join(set(t_matches))})")
+
+    # 4. Demographic matches
+    if filters.get("sex") and record.sex and filters["sex"].upper() == record.sex.upper():
+        score += 10.0
+        reasons.append(f"Sex ({record.sex})")
+
+    # 5. Token coverage across entire record text
+    full_text = f"{clothing_str} {jewellery_str} {tattoos_str} {scars_str} {phys_str}"
+    if query_tokens:
+        matched_tok_count = sum(1 for t in query_tokens if t in full_text)
+        tok_ratio = matched_tok_count / len(query_tokens)
+        score += (tok_ratio * 30.0)
+
+    score = min(100.0, round(score, 1))
+    return score, reasons
 
 
 class BobCopilotService:
@@ -202,102 +302,65 @@ class BobCopilotService:
             return {"evaluation": eval_res, "rationale": rationale}
 
         elif tool_name == "search_by_description":
-            # -----------------------------------------------------------------
-            # Natural-language description search across PM and AM records
-            # Searches: sex, age range, height, clothing, scars/tattoos/marks,
-            #           jewellery, blood group, and recovery/last-seen location.
-            # -----------------------------------------------------------------
             filters = params.get("filters", {})
-            record_type = params.get("record_type", "BOTH")  # PM, AM, or BOTH
+            record_type = params.get("record_type", "BOTH")
+            query_tokens = filters.get("tokens", [])
             results: Dict[str, List[Dict]] = {"pm_records": [], "am_records": []}
 
-            # --- PM search ---
+            # --- PM Search ---
             if record_type in ("PM", "BOTH"):
-                q = db.query(PMCase).filter(PMCase.incident_id == incident_id)
-                if filters.get("sex"):
-                    q = q.filter(PMCase.sex.ilike(f"%{filters['sex']}%"))
-                if filters.get("age_min") is not None:
-                    q = q.filter(PMCase.estimated_age_max >= int(filters["age_min"]))
-                if filters.get("age_max") is not None:
-                    q = q.filter(PMCase.estimated_age_min <= int(filters["age_max"]))
-                if filters.get("blood_group"):
-                    q = q.filter(PMCase.blood_group.ilike(f"%{filters['blood_group']}%"))
-                if filters.get("location"):
-                    q = q.filter(PMCase.recovery_location.ilike(f"%{filters['location']}%"))
-
-                candidates = q.limit(20).all()
-
-                # Post-filter JSON fields (clothing, scars, tattoos, birthmarks) in Python
-                for p in candidates:
-                    ok = True
-                    if filters.get("clothing_keywords"):
-                        ok = ok and _json_contains_keyword(p.clothing, filters["clothing_keywords"])
-                    if filters.get("body_marks"):
-                        for bm in filters["body_marks"]:
-                            field = bm["type"]
-                            loc = bm.get("location")
-                            field_val = getattr(p, field, None)
-                            if field_val is not None:
-                                match = _json_contains_keyword(field_val, [loc] if loc else [""])
-                                ok = ok and (True if not loc else match)
-                    if filters.get("jewellery_keywords"):
-                        ok = ok and _json_contains_keyword(p.jewellery, filters["jewellery_keywords"])
-                    if ok:
-                        results["pm_records"].append({
+                pms = db.query(PMCase).filter(PMCase.incident_id == incident_id).all()
+                scored_pms = []
+                for p in pms:
+                    s, r = _score_record_against_query(p, filters, query_tokens)
+                    if s >= 15.0 or (not query_tokens and not filters):
+                        clothing_display = ", ".join([c.get("description", str(c)) if isinstance(c, dict) else str(c) for c in (p.clothing or [])]) or "None"
+                        jewellery_display = ", ".join([j.get("description", str(j)) if isinstance(j, dict) else str(j) for j in (p.jewellery or [])]) or "None"
+                        scored_pms.append({
                             "type": "PM",
                             "id": p.body_number,
+                            "uuid": str(p.id),
+                            "score": s,
+                            "reasons": r,
                             "sex": p.sex,
                             "age_range": f"{p.estimated_age_min}–{p.estimated_age_max}" if p.estimated_age_min else "Unknown",
                             "height_cm": p.height_cm,
                             "blood_group": p.blood_group,
-                            "clothing": p.clothing,
+                            "clothing": clothing_display,
+                            "jewellery": jewellery_display,
                             "location": p.recovery_location,
                             "physical_description": (p.physical_description or "")[:120],
                         })
+                scored_pms.sort(reverse=True, key=lambda x: x["score"])
+                results["pm_records"] = scored_pms[:10]
 
-            # --- AM search ---
+            # --- AM Search ---
             if record_type in ("AM", "BOTH"):
-                q = db.query(AMCase).filter(AMCase.incident_id == incident_id)
-                if filters.get("sex"):
-                    q = q.filter(AMCase.sex.ilike(f"%{filters['sex']}%"))
-                if filters.get("age_min") is not None:
-                    q = q.filter(AMCase.age >= int(filters["age_min"]))
-                if filters.get("age_max") is not None:
-                    q = q.filter(AMCase.age <= int(filters["age_max"]))
-                if filters.get("blood_group"):
-                    q = q.filter(AMCase.blood_group.ilike(f"%{filters['blood_group']}%"))
-                if filters.get("location"):
-                    q = q.filter(AMCase.last_seen_location.ilike(f"%{filters['location']}%"))
-
-                candidates = q.limit(20).all()
-
-                for a in candidates:
-                    ok = True
-                    if filters.get("clothing_keywords"):
-                        ok = ok and _json_contains_keyword(a.clothing, filters["clothing_keywords"])
-                    if filters.get("body_marks"):
-                        for bm in filters["body_marks"]:
-                            field = bm["type"]
-                            loc = bm.get("location")
-                            field_val = getattr(a, field, None)
-                            if field_val is not None:
-                                match = _json_contains_keyword(field_val, [loc] if loc else [""])
-                                ok = ok and (True if not loc else match)
-                    if filters.get("jewellery_keywords"):
-                        ok = ok and _json_contains_keyword(a.jewellery, filters["jewellery_keywords"])
-                    if ok:
-                        results["am_records"].append({
+                ams = db.query(AMCase).filter(AMCase.incident_id == incident_id).all()
+                scored_ams = []
+                for a in ams:
+                    s, r = _score_record_against_query(a, filters, query_tokens)
+                    if s >= 15.0 or (not query_tokens and not filters):
+                        clothing_display = ", ".join([c.get("description", str(c)) if isinstance(c, dict) else str(c) for c in (a.clothing or [])]) or "None"
+                        jewellery_display = ", ".join([j.get("description", str(j)) if isinstance(j, dict) else str(j) for j in (a.jewellery or [])]) or "None"
+                        scored_ams.append({
                             "type": "AM",
                             "id": a.case_number,
+                            "uuid": str(a.id),
+                            "score": s,
+                            "reasons": r,
                             "name": a.name,
                             "sex": a.sex,
                             "age": a.age,
                             "height_cm": a.height_cm,
                             "blood_group": a.blood_group,
-                            "clothing": a.clothing,
+                            "clothing": clothing_display,
+                            "jewellery": jewellery_display,
                             "last_seen_location": a.last_seen_location,
                             "physical_description": (a.physical_description or "")[:120],
                         })
+                scored_ams.sort(reverse=True, key=lambda x: x["score"])
+                results["am_records"] = scored_ams[:10]
 
             return results
 
@@ -392,9 +455,9 @@ class BobCopilotService:
         lower = query.lower()
         triggers = [
             "find", "search", "look for", "locate", "who is", "any", "wearing",
-            "has a", "have a", "with a", "with tattoo", "with scar",
-            "shirt", "jeans", "kurta", "jacket", "red", "blue", "green",
-            "ring", "watch", "chain", "scar", "tattoo", "birthmark",
+            "has a", "have a", "with a", "with tattoo", "with scar", "person", "man", "woman", "boy", "girl",
+            "shirt", "jeans", "kurta", "jacket", "red", "blue", "green", "grey", "gray", "white", "black", "gold", "silver",
+            "ring", "watch", "wristwatch", "analog", "chain", "scar", "tattoo", "birthmark", "shoe", "shoes", "sneaker", "sneakers"
         ]
         return any(t in lower for t in triggers)
 
@@ -417,58 +480,59 @@ class BobCopilotService:
             hi = filters.get("age_max", "?")
             filter_parts.append(f"aged {lo}–{hi}")
         if filters.get("clothing_keywords"):
-            filter_parts.append(f"wearing *{', '.join(filters['clothing_keywords'][:3])}*")
+            filter_parts.append(f"clothing: *{', '.join(filters['clothing_keywords'][:3])}*")
+        if filters.get("jewellery_keywords"):
+            filter_parts.append(f"jewellery/watch: *{', '.join(filters['jewellery_keywords'][:3])}*")
         if filters.get("body_marks"):
             for bm in filters["body_marks"]:
                 loc = f" on {bm['location']}" if bm.get("location") else ""
                 filter_parts.append(f"has {bm['type'].rstrip('s')}{loc}")
-        if filters.get("jewellery_keywords"):
-            filter_parts.append(f"wearing *{', '.join(filters['jewellery_keywords'])}*")
         if filters.get("blood_group"):
             filter_parts.append(f"blood group **{filters['blood_group']}**")
         if filters.get("location"):
             filter_parts.append(f"near *{filters['location']}*")
 
-        filter_summary = ", ".join(filter_parts) if filter_parts else "the given description"
+        filter_summary = ", ".join(filter_parts) if filter_parts else f"“{query}”"
 
         if total == 0:
             return (
-                f"I searched both ante-mortem and post-mortem records for {filter_summary}, "
+                f"I searched both Ante-Mortem (AM) and Post-Mortem (PM) forensic records for {filter_summary}, "
                 f"but found **no matching records** in this incident.\n\n"
-                f"> 💡 Try broadening your search — for example, remove the colour or drop the age range."
+                f"> 💡 Try broadening your search or checking spelling."
             )
 
         lines = [
-            f"I found **{total} record(s)** matching {filter_summary}:\n",
+            f"I found **{total} record(s)** matching {filter_summary} (ranked by visual & demographic relevance):\n",
         ]
-
-        if pm_records:
-            lines.append(f"### 🔵 Post-Mortem Records ({len(pm_records)} found)\n")
-            lines.append("| Body # | Sex | Age | Height | Clothing | Location |")
-            lines.append("|--------|-----|-----|--------|----------|----------|")
-            for r in pm_records:
-                clothing_str = ", ".join(r["clothing"]) if isinstance(r["clothing"], list) else str(r["clothing"] or "—")
-                lines.append(
-                    f"| **{r['id']}** | {r.get('sex') or '—'} | {r.get('age_range', '—')} "
-                    f"| {r.get('height_cm') or '—'} cm | {clothing_str[:40] or '—'} | {r.get('location') or '—'} |"
-                )
-            lines.append("")
 
         if am_records:
             lines.append(f"### 🟠 Ante-Mortem Records ({len(am_records)} found)\n")
-            lines.append("| Case # | Name | Sex | Age | Height | Clothing | Last Seen |")
-            lines.append("|--------|------|-----|-----|--------|----------|-----------|")
+            lines.append("| Case # | Name | Relevance | Matched Observables | Jewellery & Accessories | Visible Clothing |")
+            lines.append("|--------|------|-----------|---------------------|--------------------------|------------------|")
             for r in am_records:
-                clothing_str = ", ".join(r["clothing"]) if isinstance(r["clothing"], list) else str(r["clothing"] or "—")
+                match_badge = BobCopilotService._score_badge(r.get("score", 0))
+                reasons_str = "; ".join(r.get("reasons", [])[:2]) or "Visual concordance"
                 lines.append(
-                    f"| **{r['id']}** | {r.get('name', '—')} | {r.get('sex') or '—'} | {r.get('age') or '—'} "
-                    f"| {r.get('height_cm') or '—'} cm | {clothing_str[:40] or '—'} | {r.get('last_seen_location') or '—'} |"
+                    f"| **{r['id']}** | {r.get('name', '—')} | {match_badge} **{r.get('score', 0):.0f}%** "
+                    f"| {reasons_str} | {r.get('jewellery', '—')[:45]} | {r.get('clothing', '—')[:45]} |"
+                )
+            lines.append("")
+
+        if pm_records:
+            lines.append(f"### 🔵 Post-Mortem Records ({len(pm_records)} found)\n")
+            lines.append("| Body # | Relevance | Matched Observables | Jewellery & Accessories | Visible Clothing | Recovery |")
+            lines.append("|--------|-----------|---------------------|--------------------------|------------------|----------|")
+            for r in pm_records:
+                match_badge = BobCopilotService._score_badge(r.get("score", 0))
+                reasons_str = "; ".join(r.get("reasons", [])[:2]) or "Visual concordance"
+                lines.append(
+                    f"| **{r['id']}** | {match_badge} **{r.get('score', 0):.0f}%** "
+                    f"| {reasons_str} | {r.get('jewellery', '—')[:45]} | {r.get('clothing', '—')[:45]} | {r.get('location', '—')} |"
                 )
             lines.append("")
 
         lines.append(
-            "> Results are filtered by available structured data. "
-            "Open any record to view full details and run candidate matching."
+            "> 🔍 **Click on any Case # or Body #** above to inspect full forensic evidence, photos, and run candidate matching."
         )
 
         return "\n".join(lines)

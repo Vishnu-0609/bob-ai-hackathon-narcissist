@@ -37,6 +37,7 @@ class Incident(Base):
 
     am_cases = relationship("AMCase", back_populates="incident", cascade="all, delete-orphan")
     pm_cases = relationship("PMCase", back_populates="incident", cascade="all, delete-orphan")
+    images = relationship("ImageEvidence", back_populates="incident", cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -85,6 +86,7 @@ class AMCase(Base):
 
     incident = relationship("Incident", back_populates="am_cases")
     matches = relationship("Match", back_populates="am_case", cascade="all, delete-orphan")
+    images = relationship("ImageEvidence", back_populates="am_case", cascade="all, delete-orphan", foreign_keys="[ImageEvidence.am_id]")
 
 
 class PMCase(Base):
@@ -120,6 +122,7 @@ class PMCase(Base):
 
     incident = relationship("Incident", back_populates="pm_cases")
     matches = relationship("Match", back_populates="pm_case", cascade="all, delete-orphan")
+    images = relationship("ImageEvidence", back_populates="pm_case", cascade="all, delete-orphan", foreign_keys="[ImageEvidence.pm_id]")
 
 
 class Match(Base):
@@ -259,3 +262,40 @@ class ExtractionReview(Base):
     reviewed_by = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=utc_now)
     reviewed_at = Column(DateTime, nullable=True)
+
+
+class ImageEvidence(Base):
+    __tablename__ = "image_evidence"
+
+    id = Column(String(64), primary_key=True, default=generate_uuid)
+    incident_id = Column(String(64), ForeignKey("incidents.id"), nullable=False, index=True)
+    am_id = Column(String(64), ForeignKey("am_cases.id"), nullable=True, index=True)
+    pm_id = Column(String(64), ForeignKey("pm_cases.id"), nullable=True, index=True)
+
+    storage_path = Column(String(500), nullable=False)
+    original_filename = Column(String(255), nullable=False)
+    mime_type = Column(String(50), nullable=False)
+    file_size = Column(Integer, nullable=False)
+    sha256 = Column(String(64), nullable=False, index=True)
+
+    image_type = Column(String(50), default="OTHER")
+    # AM: PORTRAIT, FULL_BODY, CLOTHING, TATTOO, SCAR, JEWELLERY, OTHER
+    # PM: BODY_OVERVIEW, CLOTHING, TATTOO, SCAR, JEWELLERY, INJURY, DENTAL, OTHER
+
+    gemini_model = Column(String(100), default="gemini-2.5-flash")
+    analysis_status = Column(String(50), default="PENDING")  # PENDING, ANALYZING, COMPLETED, FAILED
+    extraction_json = Column(JSON, default=dict)
+
+    human_review_status = Column(String(50), default="PENDING_REVIEW")  # PENDING_REVIEW, APPROVED, MODIFIED_AND_APPROVED, REJECTED
+    reviewed_by = Column(String(100), nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+
+    uploaded_by = Column(String(100), default="SYSTEM")
+    uploaded_at = Column(DateTime, default=utc_now)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+    incident = relationship("Incident", back_populates="images")
+    am_case = relationship("AMCase", back_populates="images", foreign_keys=[am_id])
+    pm_case = relationship("PMCase", back_populates="images", foreign_keys=[pm_id])
+

@@ -11,7 +11,9 @@ import {
   AuditVerifyResponse,
   EvaluationMetrics,
   EvidenceGraphData,
+  ImageEvidence,
 } from '../types';
+
 
 const API_BASE = '/api';
 
@@ -256,6 +258,114 @@ class ApiService {
     return this.request<AuditVerifyResponse>('/audit/verify');
   }
 
+  // Image Evidence & Gemini Vision
+  async uploadImage(formData: FormData): Promise<ImageEvidence> {
+    const headers = new Headers();
+    const token = this.getToken();
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    const response = await fetch(`${API_BASE}/images/upload`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let errorMsg = `HTTP Error ${response.status}`;
+      try {
+        const errorJson = await response.json();
+        errorMsg = errorJson.detail || errorJson.message || errorMsg;
+      } catch (e) {
+        // ignore
+      }
+      throw new Error(errorMsg);
+    }
+
+    return response.json();
+  }
+
+  async batchUploadImages(formData: FormData): Promise<ImageEvidence[]> {
+    const headers = new Headers();
+    const token = this.getToken();
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    const response = await fetch(`${API_BASE}/images/batch-upload`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let errorMsg = `HTTP Error ${response.status}`;
+      try {
+        const errorJson = await response.json();
+        errorMsg = errorJson.detail || errorJson.message || errorMsg;
+      } catch (e) {
+        // ignore
+      }
+      throw new Error(errorMsg);
+    }
+
+    return response.json();
+  }
+
+  async analyzeImage(imageId: string): Promise<any> {
+    return this.request<any>(`/images/${imageId}/analyze`, {
+      method: 'POST',
+    });
+  }
+
+  async getImageAnalysis(imageId: string): Promise<ImageEvidence> {
+    return this.request<ImageEvidence>(`/images/${imageId}/analysis`);
+  }
+
+  async reviewImage(
+    imageId: string,
+    decision: 'APPROVED' | 'MODIFIED_AND_APPROVED' | 'REJECTED',
+    approvedObservations: any,
+    notes?: string,
+    options: {
+      amId?: string;
+      pmId?: string;
+      incidentId?: string;
+      autoCreateCase?: boolean;
+      recordType?: 'AM' | 'PM';
+    } = {}
+  ): Promise<ImageEvidence> {
+    return this.request<ImageEvidence>(`/images/${imageId}/review`, {
+      method: 'POST',
+      body: JSON.stringify({
+        decision,
+        approved_observations: approvedObservations,
+        notes,
+        am_id: options.amId,
+        pm_id: options.pmId,
+        incident_id: options.incidentId,
+        auto_create_case: options.autoCreateCase,
+        record_type: options.recordType,
+      }),
+    });
+  }
+
+  async listImages(params: { incidentId?: string; amId?: string; pmId?: string } = {}): Promise<ImageEvidence[]> {
+    const query = new URLSearchParams();
+    if (params.incidentId) query.append('incident_id', params.incidentId);
+    if (params.amId) query.append('am_id', params.amId);
+    if (params.pmId) query.append('pm_id', params.pmId);
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return this.request<ImageEvidence[]>(`/images${queryString}`);
+  }
+
+  getImageFileUrl(imageId: string): string {
+    const token = this.getToken();
+    const query = token ? `?token=${encodeURIComponent(token)}` : '';
+    return `${API_BASE}/images/${imageId}/file${query}`;
+  }
+
   // Evaluation
   async getEvaluationMetrics(): Promise<EvaluationMetrics> {
     return this.request<EvaluationMetrics>('/evaluation');
@@ -263,3 +373,4 @@ class ApiService {
 }
 
 export const api = new ApiService();
+

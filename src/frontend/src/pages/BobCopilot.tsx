@@ -9,13 +9,16 @@ import {
   ShieldCheck,
   HelpCircle,
   Clock,
+  ExternalLink,
+  Eye,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { CopilotMessage, Incident } from '../types';
+import { CaseDetailsModal } from '../components/CaseDetailsModal';
 
 interface BobCopilotProps {
   activeIncident: Incident | null;
-  onNavigateToReconciliation: (bodyNumber: string) => void;
+  onNavigateToReconciliation: (bodyNumber: string, amId?: string) => void;
 }
 
 export const BobCopilot: React.FC<BobCopilotProps> = ({
@@ -28,20 +31,21 @@ export const BobCopilot: React.FC<BobCopilotProps> = ({
       sender: 'bob',
       text: (
         "Hello Coordinator. I am your **IBM Bob DVI Coordinator Copilot**.\n\n" +
-        "I can help you analyze forensic candidate matches, explain deterministic scores, identify missing evidence, and safely query cases without executing raw SQL.\n\n" +
+        "I can help you analyze forensic candidate matches, explain deterministic scores, identify missing evidence, and search cases by visual descriptions (clothing, jewellery, watches, tattoos, scars).\n\n" +
         "**How can I assist your team today?**"
       ),
       timestamp: new Date().toLocaleTimeString(),
       suggested_actions: [
+        'a person with Analog wristwatch with a gold-colored circular case with grey shoe',
         'Why is AM-042 ranked first for PM-017?',
         'Show top candidates for PM-017',
         'Show cases with conflicting scar or tattoo information',
-        'Filter unidentified male bodies',
       ],
     },
   ]);
   const [inputQuery, setInputQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [inspectedCaseId, setInspectedCaseId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,6 +54,13 @@ export const BobCopilot: React.FC<BobCopilotProps> = ({
 
   const handleSend = async (queryToSend = inputQuery) => {
     if (!queryToSend.trim() || !activeIncident) return;
+
+    // Check if the user clicked an 'Open AM-xxx' or 'Open PM-xxx' action
+    const openMatch = queryToSend.match(/^Open\s+(AM-\d+|PM-\d+|[a-f0-9\-]{36})/i);
+    if (openMatch) {
+      setInspectedCaseId(openMatch[1]);
+      return;
+    }
 
     const userMsg: CopilotMessage = {
       id: `user-${Date.now()}`,
@@ -88,6 +99,152 @@ export const BobCopilot: React.FC<BobCopilotProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  /**
+   * Parses Markdown content into interactive components with clickable Case IDs,
+   * tables, bold highlights, and action buttons.
+   */
+  const renderMessageContent = (text: string) => {
+    const lines = text.split('\n');
+    const elements: React.ReactNode[] = [];
+    let inTable = false;
+    let tableRows: string[][] = [];
+
+    const flushTable = (key: string) => {
+      if (tableRows.length > 0) {
+        const [header, , ...body] = tableRows;
+        elements.push(
+          <div key={key} className="overflow-x-auto my-2 rounded-xl border border-slate-800 bg-slate-950/80 shadow-md">
+            <table className="w-full text-left text-[11px] border-collapse">
+              <thead>
+                <tr className="bg-slate-900 border-b border-slate-800 text-slate-300 font-bold uppercase tracking-wider">
+                  {header?.map((h, hi) => (
+                    <th key={hi} className="p-2.5 font-semibold">
+                      {h.trim()}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {body.map((row, ri) => (
+                  <tr key={ri} className="hover:bg-slate-900/60 transition">
+                    {row.map((cell, ci) => {
+                      const trimmed = cell.trim();
+                      const caseMatch = trimmed.match(/\*\*(AM-\d+|PM-\d+|[a-f0-9\-]{36})\*\*/i) || trimmed.match(/^(AM-\d+|PM-\d+|[a-f0-9\-]{36})$/i);
+                      return (
+                        <td key={ci} className="p-2.5 font-mono text-slate-200">
+                          {caseMatch ? (
+                            <button
+                              type="button"
+                              onClick={() => setInspectedCaseId(caseMatch[1])}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/30 font-bold text-xs transition shadow-sm"
+                              title={`Inspect full forensic record for ${caseMatch[1]}`}
+                            >
+                              <span>{caseMatch[1]}</span>
+                              <Eye className="h-3 w-3" />
+                            </button>
+                          ) : (
+                            formatInlineText(trimmed)
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        tableRows = [];
+      }
+      inTable = false;
+    };
+
+    lines.forEach((line, idx) => {
+      const isTableRow = line.trim().startsWith('|') && line.trim().endsWith('|');
+
+      if (isTableRow) {
+        inTable = true;
+        const cells = line
+          .trim()
+          .slice(1, -1)
+          .split('|');
+        tableRows.push(cells);
+      } else {
+        if (inTable) {
+          flushTable(`table-${idx}`);
+        }
+
+        if (line.startsWith('### ')) {
+          elements.push(
+            <h4 key={idx} className="text-xs font-bold text-sky-400 uppercase tracking-wider mt-3 mb-1">
+              {line.replace('### ', '')}
+            </h4>
+          );
+        } else if (line.startsWith('> ')) {
+          elements.push(
+            <div key={idx} className="p-2 rounded-lg bg-sky-500/10 border border-sky-500/20 text-[11px] text-sky-300 italic my-1">
+              {formatInlineText(line.replace('> ', ''))}
+            </div>
+          );
+        } else if (line.trim()) {
+          elements.push(
+            <p key={idx} className="leading-relaxed">
+              {formatInlineText(line)}
+            </p>
+          );
+        } else {
+          elements.push(<div key={idx} className="h-1" />);
+        }
+      }
+    });
+
+    if (inTable) {
+      flushTable(`table-end`);
+    }
+
+    return elements;
+  };
+
+  /**
+   * Highlights bold words and makes Case Identifiers directly clickable.
+   */
+  const formatInlineText = (str: string) => {
+    const parts = str.split(/(\*\*[^*]+\*\*|`(?:AM-\d+|PM-\d+|[a-f0-9\-]{36})`|AM-\d+|PM-\d+)/g);
+    return parts.map((part, i) => {
+      const cleanCase = part.replace(/\*\*|`/g, '').trim();
+      if (/^(AM-\d+|PM-\d+|[a-f0-9\-]{36})$/i.test(cleanCase)) {
+        const isAM = cleanCase.toUpperCase().startsWith('AM');
+        return (
+          <button
+            key={i}
+            type="button"
+            onClick={() => setInspectedCaseId(cleanCase)}
+            className={`inline-flex items-center gap-1 font-mono font-bold px-1.5 py-0.5 rounded text-[11px] mx-0.5 border transition cursor-pointer ${
+              isAM
+                ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40'
+                : 'bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border-sky-500/40'
+            }`}
+            title={`Click to inspect case details for ${cleanCase}`}
+          >
+            <span>{cleanCase}</span>
+            <ExternalLink className="h-2.5 w-2.5 opacity-80" />
+          </button>
+        );
+      }
+
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={i} className="font-bold text-white">{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith('`') && part.endsWith('`')) {
+        return <code key={i} className="font-mono text-sky-300 bg-slate-900 px-1 py-0.5 rounded">{part.slice(1, -1)}</code>;
+      }
+      if (part.startsWith('*') && part.endsWith('*')) {
+        return <em key={i} className="text-slate-300">{part.slice(1, -1)}</em>;
+      }
+      return part;
+    });
   };
 
   return (
@@ -138,7 +295,11 @@ export const BobCopilot: React.FC<BobCopilotProps> = ({
                   : 'bg-slate-950 border border-slate-800 text-slate-200'
               }`}
             >
-              <div className="whitespace-pre-line">{msg.text}</div>
+              {msg.sender === 'user' ? (
+                <div className="whitespace-pre-line">{msg.text}</div>
+              ) : (
+                <div className="space-y-1.5">{renderMessageContent(msg.text)}</div>
+              )}
 
               {/* Tools execution pill */}
               {msg.tools_used && msg.tools_used.length > 0 && (
@@ -158,16 +319,25 @@ export const BobCopilot: React.FC<BobCopilotProps> = ({
               {/* Suggested Follow-ups */}
               {msg.suggested_actions && (
                 <div className="pt-2 flex flex-wrap gap-1.5">
-                  {msg.suggested_actions.map((act, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleSend(act)}
-                      className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-850 text-sky-300 border border-slate-800 hover:border-slate-700 text-[11px] font-medium transition flex items-center gap-1"
-                    >
-                      <Sparkles className="h-3 w-3 text-sky-400" />
-                      <span>{act}</span>
-                    </button>
-                  ))}
+                  {msg.suggested_actions.map((act, idx) => {
+                    const openCaseMatch = act.match(/^Open\s+(AM-\d+|PM-\d+|[a-f0-9\-]{36})/i);
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          if (openCaseMatch) {
+                            setInspectedCaseId(openCaseMatch[1]);
+                          } else {
+                            handleSend(act);
+                          }
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-850 text-sky-300 border border-slate-800 hover:border-slate-700 text-[11px] font-medium transition flex items-center gap-1"
+                      >
+                        {openCaseMatch ? <Eye className="h-3 w-3 text-sky-400" /> : <Sparkles className="h-3 w-3 text-sky-400" />}
+                        <span>{act}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
@@ -204,7 +374,7 @@ export const BobCopilot: React.FC<BobCopilotProps> = ({
             type="text"
             value={inputQuery}
             onChange={(e) => setInputQuery(e.target.value)}
-            placeholder="Ask IBM Bob: 'Why is AM-042 ranked first?', 'Show candidates for PM-017', 'Explain contradictions'..."
+            placeholder="Ask IBM Bob: 'a person with Analog wristwatch with gold case', 'Why is AM-042 ranked first?', 'Show PM-017 candidates'..."
             className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
           />
           <button
@@ -217,6 +387,15 @@ export const BobCopilot: React.FC<BobCopilotProps> = ({
           </button>
         </form>
       </div>
+
+      {/* Detailed Case Inspector Modal */}
+      {inspectedCaseId && (
+        <CaseDetailsModal
+          caseId={inspectedCaseId}
+          onClose={() => setInspectedCaseId(null)}
+          onNavigateToReconciliation={onNavigateToReconciliation}
+        />
+      )}
     </div>
   );
 };

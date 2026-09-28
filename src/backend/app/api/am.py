@@ -214,40 +214,71 @@ def review_and_save_am(
     data = submission.approved_data
     case_num = submission.case_identifier or f"AM-{db.query(AMCase).count() + 1:03d}"
 
-    am = AMCase(
-        incident_id=submission.incident_id,
-        case_number=case_num,
-        name=data.get("name") or "Unknown Family Report",
-        age=data.get("age"),
-        sex=(data.get("sex") or "").upper() or None,
-        height_cm=data.get("height_cm"),
-        weight_kg=data.get("weight_kg"),
-        blood_group=(data.get("blood_group") or "").upper() or None,
-        physical_description=data.get("physical_description") or "",
-        scars=data.get("scars") or [],
-        birthmarks=data.get("birthmarks") or [],
-        tattoos=data.get("tattoos") or [],
-        clothing=data.get("clothing") or [],
-        jewellery=data.get("jewellery") or [],
-        dental_notes=data.get("dental_notes"),
-        medical_history=data.get("medical_history"),
-        implants=data.get("implants") or [],
-        last_seen_location=data.get("last_seen_location"),
-        last_seen_time=data.get("last_seen_time"),
-        source="Family Narrative (Bob Extraction)",
-        source_type="FAMILY_INTERVIEW",
-        provenance_details={
-            "source_type": "FAMILY_INTERVIEW",
-            "extracted_by": "IBM_BOB",
-            "review_status": "HUMAN_VERIFIED",
-            "reviewed_by": current_user.get("username", "USER"),
-            "reviewed_at": datetime.now(timezone.utc).isoformat(),
-            "notes": submission.notes,
-        },
-        version=1,
-        created_by=current_user.get("username", "SYSTEM"),
-    )
-    db.add(am)
+    am = db.query(AMCase).filter((AMCase.case_number == case_num) | (AMCase.id == case_num)).first()
+    if am:
+        if data.get("name"):
+            am.name = data.get("name")
+        if data.get("age") is not None:
+            am.age = data.get("age")
+        if data.get("sex"):
+            am.sex = (data.get("sex") or "").upper() or None
+        if data.get("height_cm") is not None:
+            am.height_cm = data.get("height_cm")
+        if data.get("weight_kg") is not None:
+            am.weight_kg = data.get("weight_kg")
+        if data.get("blood_group"):
+            am.blood_group = (data.get("blood_group") or "").upper() or None
+        if data.get("physical_description"):
+            am.physical_description = data.get("physical_description")
+        if data.get("scars"):
+            am.scars = data.get("scars")
+        if data.get("birthmarks"):
+            am.birthmarks = data.get("birthmarks")
+        if data.get("tattoos"):
+            am.tattoos = data.get("tattoos")
+        if data.get("clothing"):
+            am.clothing = data.get("clothing")
+        if data.get("jewellery"):
+            am.jewellery = data.get("jewellery")
+        if data.get("last_seen_location"):
+            am.last_seen_location = data.get("last_seen_location")
+        am.version = (am.version or 0) + 1
+        am.updated_at = datetime.now(timezone.utc)
+    else:
+        am = AMCase(
+            incident_id=submission.incident_id,
+            case_number=case_num,
+            name=data.get("name") or "Unknown Family Report",
+            age=data.get("age"),
+            sex=(data.get("sex") or "").upper() or None,
+            height_cm=data.get("height_cm"),
+            weight_kg=data.get("weight_kg"),
+            blood_group=(data.get("blood_group") or "").upper() or None,
+            physical_description=data.get("physical_description") or "",
+            scars=data.get("scars") or [],
+            birthmarks=data.get("birthmarks") or [],
+            tattoos=data.get("tattoos") or [],
+            clothing=data.get("clothing") or [],
+            jewellery=data.get("jewellery") or [],
+            dental_notes=data.get("dental_notes"),
+            medical_history=data.get("medical_history"),
+            implants=data.get("implants") or [],
+            last_seen_location=data.get("last_seen_location"),
+            last_seen_time=data.get("last_seen_time"),
+            source="Family Narrative (Bob Extraction)",
+            source_type="FAMILY_INTERVIEW",
+            provenance_details={
+                "source_type": "FAMILY_INTERVIEW",
+                "extracted_by": "IBM_BOB",
+                "review_status": "HUMAN_VERIFIED",
+                "reviewed_by": current_user.get("username", "USER"),
+                "reviewed_at": datetime.now(timezone.utc).isoformat(),
+                "notes": submission.notes,
+            },
+            version=1,
+            created_by=current_user.get("username", "SYSTEM"),
+        )
+        db.add(am)
 
     if submission.review_id:
         rev = db.query(ExtractionReview).filter(ExtractionReview.id == submission.review_id).first()

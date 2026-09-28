@@ -212,38 +212,69 @@ def review_and_save_pm(
     data = submission.approved_data
     body_num = submission.case_identifier or f"PM-{db.query(PMCase).count() + 1:03d}"
 
-    pm = PMCase(
-        incident_id=submission.incident_id,
-        body_number=body_num,
-        estimated_age_min=data.get("estimated_age_min"),
-        estimated_age_max=data.get("estimated_age_max"),
-        sex=(data.get("sex") or "").upper() or None,
-        height_cm=data.get("height_cm"),
-        weight_kg=data.get("weight_kg"),
-        blood_group=(data.get("blood_group") or "").upper() or None,
-        physical_description=data.get("physical_description") or "",
-        scars=data.get("scars") or [],
-        birthmarks=data.get("birthmarks") or [],
-        tattoos=data.get("tattoos") or [],
-        clothing=data.get("clothing") or [],
-        jewellery=data.get("jewellery") or [],
-        dental_findings=data.get("dental_findings"),
-        medical_findings=data.get("medical_findings"),
-        implants=data.get("implants") or [],
-        recovery_location=data.get("recovery_location"),
-        examiner=data.get("examiner") or current_user.get("username", "Examiner"),
-        provenance_details={
-            "source_type": "MORTUARY_OBSERVATION",
-            "extracted_by": "IBM_BOB",
-            "review_status": "HUMAN_VERIFIED",
-            "reviewed_by": current_user.get("username", "USER"),
-            "reviewed_at": datetime.now(timezone.utc).isoformat(),
-            "notes": submission.notes,
-        },
-        version=1,
-        created_by=current_user.get("username", "SYSTEM"),
-    )
-    db.add(pm)
+    pm = db.query(PMCase).filter((PMCase.body_number == body_num) | (PMCase.id == body_num)).first()
+    if pm:
+        if data.get("estimated_age_min") is not None:
+            pm.estimated_age_min = data.get("estimated_age_min")
+        if data.get("estimated_age_max") is not None:
+            pm.estimated_age_max = data.get("estimated_age_max")
+        if data.get("sex"):
+            pm.sex = (data.get("sex") or "").upper() or None
+        if data.get("height_cm") is not None:
+            pm.height_cm = data.get("height_cm")
+        if data.get("weight_kg") is not None:
+            pm.weight_kg = data.get("weight_kg")
+        if data.get("blood_group"):
+            pm.blood_group = (data.get("blood_group") or "").upper() or None
+        if data.get("physical_description"):
+            pm.physical_description = data.get("physical_description")
+        if data.get("scars"):
+            pm.scars = data.get("scars")
+        if data.get("birthmarks"):
+            pm.birthmarks = data.get("birthmarks")
+        if data.get("tattoos"):
+            pm.tattoos = data.get("tattoos")
+        if data.get("clothing"):
+            pm.clothing = data.get("clothing")
+        if data.get("jewellery"):
+            pm.jewellery = data.get("jewellery")
+        if data.get("recovery_location"):
+            pm.recovery_location = data.get("recovery_location")
+        pm.version = (pm.version or 0) + 1
+        pm.updated_at = datetime.now(timezone.utc)
+    else:
+        pm = PMCase(
+            incident_id=submission.incident_id,
+            body_number=body_num,
+            estimated_age_min=data.get("estimated_age_min"),
+            estimated_age_max=data.get("estimated_age_max"),
+            sex=(data.get("sex") or "").upper() or None,
+            height_cm=data.get("height_cm"),
+            weight_kg=data.get("weight_kg"),
+            blood_group=(data.get("blood_group") or "").upper() or None,
+            physical_description=data.get("physical_description") or "",
+            scars=data.get("scars") or [],
+            birthmarks=data.get("birthmarks") or [],
+            tattoos=data.get("tattoos") or [],
+            clothing=data.get("clothing") or [],
+            jewellery=data.get("jewellery") or [],
+            dental_findings=data.get("dental_findings"),
+            medical_findings=data.get("medical_findings"),
+            implants=data.get("implants") or [],
+            recovery_location=data.get("recovery_location"),
+            examiner=data.get("examiner") or current_user.get("username", "Examiner"),
+            provenance_details={
+                "source_type": "MORTUARY_OBSERVATION",
+                "extracted_by": "IBM_BOB",
+                "review_status": "HUMAN_VERIFIED",
+                "reviewed_by": current_user.get("username", "USER"),
+                "reviewed_at": datetime.now(timezone.utc).isoformat(),
+                "notes": submission.notes,
+            },
+            version=1,
+            created_by=current_user.get("username", "SYSTEM"),
+        )
+        db.add(pm)
 
     if submission.review_id:
         rev = db.query(ExtractionReview).filter(ExtractionReview.id == submission.review_id).first()

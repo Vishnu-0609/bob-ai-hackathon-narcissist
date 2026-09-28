@@ -13,9 +13,23 @@ class Settings(BaseSettings):
     PORT: int = 8000
 
     # IBM Bob Integration
-    BOB_API_KEY: str = ""
+    BOB_API_KEY: str = "3jgdViXmajzjJggQoqurRw8dA9oU1sE6BWXhHBjAtSkuBDpqTqoStW14tjzAbeY6Lq6ZxR3uFS8g1rwde1caQocd_FEw4YEtC5yW9zmeXmbdHQtDf3q1LdUpCmidfhKgh1Q1a"
     BOB_API_URL: str = "https://api.bob.ibm.com/v1"
     BOB_TIMEOUT_SECONDS: float = 30.0
+
+    # Gemini Cloud Vision Integration
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_TIMEOUT_SECONDS: float = 30.0
+    GEMINI_MAX_RETRIES: int = 3
+    IMAGE_STORAGE_DIR: str = "storage/images"
+    MAX_IMAGE_SIZE_BYTES: int = 10 * 1024 * 1024  # 10 MB
+    ALLOWED_IMAGE_MIME_TYPES: List[str] = [
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/webp",
+    ]
 
     # Database
     DATABASE_URL: str = "sqlite:///./dvi.db"
@@ -54,7 +68,7 @@ class Settings(BaseSettings):
     MODERATE_CANDIDATE_THRESHOLD: float = 50.0
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", "../.env", "../../.env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )

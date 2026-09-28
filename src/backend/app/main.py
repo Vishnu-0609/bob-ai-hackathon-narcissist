@@ -16,6 +16,7 @@ from app.api.bob import router as bob_router
 from app.api.reports import router as reports_router
 from app.api.audit import router as audit_router
 from app.api.evaluation import router as evaluation_router
+from app.api.images import router as images_router
 
 
 @asynccontextmanager
@@ -32,7 +33,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="DVI-Bridge API",
-    description="IBM Bob-Powered Disaster Victim Identification Coordination Platform",
+    description="IBM Bob-Powered Disaster Victim Identification Coordination Platform with Gemini Cloud Multimodal Vision",
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",
@@ -66,6 +67,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(incidents_router, prefix="/api")
 app.include_router(am_router, prefix="/api")
 app.include_router(pm_router, prefix="/api")
+app.include_router(images_router, prefix="/api")
 app.include_router(matching_router, prefix="/api")
 app.include_router(reconciliation_router, prefix="/api")
 app.include_router(evidence_router, prefix="/api")
@@ -82,7 +84,10 @@ def health_check():
         "service": "DVI-Bridge Backend",
         "version": settings.APP_VERSION,
         "bob_mode": "CONNECTED" if settings.BOB_API_KEY else "FALLBACK_OPERATIONAL",
+        "gemini_vision_mode": "CONNECTED" if settings.GEMINI_API_KEY else "MOCK_OPERATIONAL",
+        "gemini_model": settings.GEMINI_MODEL,
     }
+
 
 
 if __name__ == "__main__":

@@ -405,3 +405,67 @@ class EvaluationMetricsResponse(BaseModel):
     missing_data_cases: int
     duplicate_am_cases: int
     unmatched_cases: int
+
+
+# ==================== Image Evidence Schemas ====================
+class ImageUploadResponse(BaseModel):
+    id: str
+    incident_id: str
+    am_id: Optional[str] = None
+    pm_id: Optional[str] = None
+    original_filename: str
+    mime_type: str
+    file_size: int
+    sha256: str
+    image_type: str
+    analysis_status: str
+    human_review_status: str
+    uploaded_by: str
+    uploaded_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ImageAnalyzeResponse(BaseModel):
+    image_id: str
+    analysis_status: str
+    model: str
+    extracted_data: Dict[str, Any]
+    human_review_status: str
+
+
+class ImageReviewRequest(BaseModel):
+    decision: str = Field(..., description="APPROVED, MODIFIED_AND_APPROVED, or REJECTED")
+    approved_observations: Dict[str, Any]
+    notes: Optional[str] = None
+    am_id: Optional[str] = None
+    pm_id: Optional[str] = None
+    incident_id: Optional[str] = None
+    auto_create_case: Optional[bool] = False
+    record_type: Optional[str] = None
+
+
+class ImageEvidenceResponse(BaseModel):
+    id: str
+    incident_id: str
+    am_id: Optional[str] = None
+    pm_id: Optional[str] = None
+    original_filename: str
+    mime_type: str
+    file_size: int
+    sha256: str
+    image_type: str
+    gemini_model: str
+    analysis_status: str
+    extraction_json: Dict[str, Any]
+    human_review_status: str
+    reviewed_by: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    uploaded_by: str
+    uploaded_at: datetime
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+

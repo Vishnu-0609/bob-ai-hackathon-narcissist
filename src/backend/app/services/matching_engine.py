@@ -242,8 +242,22 @@ class MatchingEngine:
         field_name: str,
         weight: float,
     ) -> Dict[str, Any]:
-        am_str = ", ".join([str(x.get("location", x) if isinstance(x, dict) else x) for x in am_items]) if am_items else "None recorded"
-        pm_str = ", ".join([str(x.get("location", x) if isinstance(x, dict) else x) for x in pm_items]) if pm_items else "None recorded"
+        def format_item(x: Any) -> str:
+            if isinstance(x, dict):
+                desc = x.get("description") or x.get("mark_type") or "feature"
+                loc = x.get("location")
+                return f"{desc} ({loc})" if loc and loc not in desc else desc
+            return str(x)
+
+        am_str = ", ".join([format_item(x) for x in am_items]) if am_items else "None recorded"
+        pm_str = ", ".join([format_item(x) for x in pm_items]) if pm_items else "None recorded"
+
+        # Capture provenance if attached to any item
+        provenance = {}
+        for item in (am_items or []) + (pm_items or []):
+            if isinstance(item, dict) and "provenance" in item:
+                provenance = item["provenance"]
+                break
 
         if not am_items and not pm_items:
             return {
@@ -255,6 +269,7 @@ class MatchingEngine:
                 "score_awarded": 0.0,
                 "contradiction": False,
                 "notes": f"No {field_name} documented in either record.",
+                "provenance": provenance,
             }
 
         if not am_items or not pm_items:
@@ -267,31 +282,65 @@ class MatchingEngine:
                 "score_awarded": 0.0,
                 "contradiction": False,
                 "notes": f"{field_name.capitalize()} present in one record but unobserved/unreported in the other.",
+                "provenance": provenance,
             }
 
         # Compare elements
-        matched_elements = 0
+        matched_elements = 0.0
         total_elements = len(am_items)
+        match_reasons = []
 
         for a in am_items:
             a_loc = self._normalize_text(a.get("location", str(a)) if isinstance(a, dict) else str(a))
             a_desc = self._normalize_text(a.get("description", "") if isinstance(a, dict) else "")
+            a_motifs = [self._normalize_text(m) for m in (a.get("design_motifs", []) if isinstance(a, dict) else [])]
+
+            best_match_for_a = 0.0
+            best_reason_for_a = ""
 
             for p in pm_items:
                 p_loc = self._normalize_text(p.get("location", str(p)) if isinstance(p, dict) else str(p))
                 p_desc = self._normalize_text(p.get("description", "") if isinstance(p, dict) else "")
+                p_motifs = [self._normalize_text(m) for m in (p.get("design_motifs", []) if isinstance(p, dict) else [])]
 
-                # Check location match (e.g. left forearm)
-                if a_loc and p_loc and (a_loc in p_loc or p_loc in a_loc):
-                    matched_elements += 1
-                    break
-                elif a_desc and p_desc and (a_desc in p_desc or p_desc in a_desc):
-                    matched_elements += 0.8
-                    break
+                # Check anatomical location match (e.g. left forearm, shoulder)
+                loc_matched = False
+                if a_loc and p_loc:
+                    loc_tokens_a = set(a_loc.split()) - {"on", "the", "near", "side", "area", "region"}
+                    loc_tokens_p = set(p_loc.split()) - {"on", "the", "near", "side", "area", "region"}
+                    if loc_tokens_a.intersection(loc_tokens_p) or a_loc in p_loc or p_loc in a_loc:
+                        loc_matched = True
+
+                # Check motif / description match
+                desc_matched = False
+                desc_tokens_a = set(a_desc.split()) - {"a", "an", "the", "and", "tattoo", "scar", "mark", "visible"}
+                desc_tokens_p = set(p_desc.split()) - {"a", "an", "the", "and", "tattoo", "scar", "mark", "visible"}
+                if desc_tokens_a.intersection(desc_tokens_p) or (a_desc and p_desc and (a_desc in p_desc or p_desc in a_desc)):
+                    desc_matched = True
+                if any(m in p_motifs or m in p_desc for m in a_motifs):
+                    desc_matched = True
+
+                if loc_matched and desc_matched:
+                    if 1.0 > best_match_for_a:
+                        best_match_for_a = 1.0
+                        best_reason_for_a = f"Location and feature match ({a_loc})"
+                elif loc_matched:
+                    if 0.8 > best_match_for_a:
+                        best_match_for_a = 0.8
+                        best_reason_for_a = f"Location match ({a_loc})"
+                elif desc_matched:
+                    if 0.7 > best_match_for_a:
+                        best_match_for_a = 0.7
+                        best_reason_for_a = f"Feature motif match"
+
+            matched_elements += best_match_for_a
+            if best_reason_for_a:
+                match_reasons.append(best_reason_for_a)
 
         if matched_elements > 0:
             ratio = min(1.0, matched_elements / max(1, total_elements))
             score = round(weight * ratio, 1)
+            reason_str = f" ({'; '.join(set(match_reasons))})" if match_reasons else ""
             return {
                 "field_name": field_name,
                 "am_value": am_str,
@@ -300,7 +349,8 @@ class MatchingEngine:
                 "weight": weight,
                 "score_awarded": score,
                 "contradiction": False,
-                "notes": f"{field_name.capitalize()} features match on anatomical location ({am_str}).",
+                "notes": f"{field_name.capitalize()} features match{reason_str}.",
+                "provenance": provenance,
             }
         else:
             return {
@@ -311,7 +361,8 @@ class MatchingEngine:
                 "weight": weight,
                 "score_awarded": 0.0,
                 "contradiction": False,
-                "notes": f"Discrepancy in recorded {field_name} details.",
+                "notes": f"Differing recorded {field_name} details.",
+                "provenance": provenance,
             }
 
     def _compare_text_list(
@@ -321,8 +372,20 @@ class MatchingEngine:
         field_name: str,
         weight: float,
     ) -> Dict[str, Any]:
-        am_str = ", ".join([str(x) for x in am_list]) if am_list else "None recorded"
-        pm_str = ", ".join([str(x) for x in pm_list]) if pm_list else "None recorded"
+        def format_text_item(x: Any) -> str:
+            if isinstance(x, dict):
+                desc = x.get("description") or f"{x.get('color', '')} {x.get('item_type', '')}".strip()
+                return desc or "item"
+            return str(x)
+
+        am_str = ", ".join([format_text_item(x) for x in am_list]) if am_list else "None recorded"
+        pm_str = ", ".join([format_text_item(x) for x in pm_list]) if pm_list else "None recorded"
+
+        provenance = {}
+        for item in (am_list or []) + (pm_list or []):
+            if isinstance(item, dict) and "provenance" in item:
+                provenance = item["provenance"]
+                break
 
         if not am_list and not pm_list:
             return {
@@ -334,6 +397,7 @@ class MatchingEngine:
                 "score_awarded": 0.0,
                 "contradiction": False,
                 "notes": f"No {field_name} observed in either case.",
+                "provenance": provenance,
             }
 
         if not am_list or not pm_list:
@@ -346,16 +410,19 @@ class MatchingEngine:
                 "score_awarded": 0.0,
                 "contradiction": False,
                 "notes": f"{field_name.capitalize()} data missing in one case.",
+                "provenance": provenance,
             }
 
-        am_tokens = set(self._normalize_text(am_str).split())
-        pm_tokens = set(self._normalize_text(pm_str).split())
+        am_tokens = set(re.findall(r"\w+", self._normalize_text(am_str)))
+        pm_tokens = set(re.findall(r"\w+", self._normalize_text(pm_str)))
         common = am_tokens.intersection(pm_tokens)
 
-        # Ignore tiny common stopwords
-        common = {w for w in common if len(w) > 2 and w not in ["and", "with", "the", "for", "worn"]}
+        # Ignore common stopwords
+        stopwords = {"and", "with", "the", "for", "worn", "item", "color", "colored", "pattern", "description", "status", "observed", "inferred", "unknown"}
+        common = {w for w in common if len(w) > 2 and w not in stopwords}
 
         if common:
+            # Full or proportional score based on keyword overlap
             score = weight
             return {
                 "field_name": field_name,
@@ -365,7 +432,8 @@ class MatchingEngine:
                 "weight": weight,
                 "score_awarded": score,
                 "contradiction": False,
-                "notes": f"Compatible {field_name} articles identified (keywords: {', '.join(common)}).",
+                "notes": f"Compatible {field_name} articles identified (matching keywords: {', '.join(sorted(common))}).",
+                "provenance": provenance,
             }
         else:
             return {
@@ -377,7 +445,9 @@ class MatchingEngine:
                 "score_awarded": 0.0,
                 "contradiction": False,
                 "notes": f"Differing {field_name} records.",
+                "provenance": provenance,
             }
+
 
     def compare_dental(self, am_case: Any, pm_case: Any) -> Dict[str, Any]:
         weight = self.weights["dental"]

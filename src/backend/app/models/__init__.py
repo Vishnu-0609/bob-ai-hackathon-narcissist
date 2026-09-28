@@ -11,6 +11,7 @@ from app.models.entities import (
     AuditLog,
     BobInteraction,
     ExtractionReview,
+    ImageEvidence,
 )
 
 __all__ = [
@@ -26,4 +27,6 @@ __all__ = [
     "AuditLog",
     "BobInteraction",
     "ExtractionReview",
+    "ImageEvidence",
 ]
+

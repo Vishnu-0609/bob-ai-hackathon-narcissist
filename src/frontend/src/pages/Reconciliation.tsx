@@ -16,7 +16,11 @@ import {
   Layers,
   FileDown,
   Bot,
+  Camera,
+  ZoomIn,
+  Image as ImageIcon,
 } from 'lucide-react';
+
 import { api } from '../services/api';
 import { EvidenceBadge } from '../components/EvidenceBadge';
 import {
@@ -26,6 +30,7 @@ import {
   TopCandidatesResponse,
   ReconciliationResponse,
 } from '../types';
+import { CaseDetailsModal } from '../components/CaseDetailsModal';
 
 interface ReconciliationProps {
   activeIncident: Incident | null;
@@ -44,6 +49,13 @@ export const Reconciliation: React.FC<ReconciliationProps> = ({
   const [selectedCandidate, setSelectedCandidate] = useState<CandidateMatch | null>(null);
   const [loading, setLoading] = useState(true);
   const [recalculating, setRecalculating] = useState(false);
+  const [inspectedCaseId, setInspectedCaseId] = useState<string | null>(null);
+
+  // Multimodal Image Evidence State
+  const [amImages, setAmImages] = useState<any[]>([]);
+  const [pmImages, setPmImages] = useState<any[]>([]);
+  const [lightboxImageUrl, setLightboxImageUrl] = useState<string | null>(null);
+  const [lightboxTitle, setLightboxTitle] = useState<string>('');
 
   // Decision Modal State
   const [showDecisionModal, setShowDecisionModal] = useState(false);
@@ -65,6 +77,24 @@ export const Reconciliation: React.FC<ReconciliationProps> = ({
       loadCandidates(selectedPmNumber);
     }
   }, [selectedPmNumber]);
+
+  useEffect(() => {
+    if (selectedCandidate && candidatesData) {
+      loadEvidenceImages(selectedCandidate.am_id, candidatesData.pm_id);
+    }
+  }, [selectedCandidate, candidatesData]);
+
+  const loadEvidenceImages = async (amId: string, pmId: string) => {
+    try {
+      const amImgs = await api.listImages({ incidentId: activeIncident?.id, amId });
+      const pmImgs = await api.listImages({ incidentId: activeIncident?.id, pmId });
+      setAmImages(amImgs);
+      setPmImages(pmImgs);
+    } catch (e) {
+      console.error('Failed to fetch evidence images:', e);
+    }
+  };
+
 
   const loadPmCases = async () => {
     if (!activeIncident) return;
@@ -180,8 +210,16 @@ export const Reconciliation: React.FC<ReconciliationProps> = ({
                 Evaluated {candidatesData?.total_candidates_evaluated || 100} AM Profiles
               </span>
             </div>
-            <h1 className="text-xl font-bold text-white mt-1">
-              Target Post-Mortem Record: <span className="text-sky-400 font-mono">{selectedPmNumber}</span>
+            <h1 className="text-xl font-bold text-white mt-1 flex items-center gap-2">
+              <span>Target Post-Mortem Record:</span>
+              <button
+                type="button"
+                onClick={() => setInspectedCaseId(selectedPmNumber)}
+                className="text-sky-400 hover:text-sky-300 font-mono hover:underline inline-flex items-center gap-1 font-bold cursor-pointer"
+                title={`Inspect full forensic record for ${selectedPmNumber}`}
+              >
+                <span>{selectedPmNumber}</span>
+              </button>
             </h1>
             <p className="text-xs text-slate-400">
               Deterministic Candidate Scoring (0-100) with IBM Bob Forensic Explainability
@@ -251,7 +289,17 @@ export const Reconciliation: React.FC<ReconciliationProps> = ({
                         <span className="h-6 w-6 rounded-full bg-slate-800 flex items-center justify-center font-mono text-xs font-bold text-slate-200 border border-slate-700">
                           #{cand.candidate_rank}
                         </span>
-                        <span className="font-bold text-white text-sm">{cand.am_case_number}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setInspectedCaseId(cand.am_case_number);
+                          }}
+                          className="font-bold text-white text-sm hover:text-sky-400 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                          title={`Inspect full forensic record for ${cand.am_case_number}`}
+                        >
+                          <span>{cand.am_case_number}</span>
+                        </button>
                       </div>
                       <div className="text-right">
                         <div className="text-lg font-bold text-sky-400 font-mono leading-none">
@@ -288,6 +336,110 @@ export const Reconciliation: React.FC<ReconciliationProps> = ({
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left 2 Cols: Field-by-Field Concordance Matrix */}
               <div className="lg:col-span-2 space-y-6">
+                {/* Multimodal Image Evidence Comparison Section (Section 24) */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Camera className="h-4 w-4 text-sky-400" />
+                      <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                        Multimodal Photographic Comparison (Gemini 2.5 Flash)
+                      </h3>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                      Visual Evidence Comparison
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* AM Image Card */}
+                    <div className="bg-slate-950 rounded-xl p-3 border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => setInspectedCaseId(selectedCandidate.am_case_number)}
+                          className="text-sky-400 font-mono hover:text-sky-300 hover:underline inline-flex items-center gap-1 font-bold cursor-pointer"
+                          title={`Inspect ${selectedCandidate.am_case_number}`}
+                        >
+                          <span>AM: {selectedCandidate.am_case_number}</span>
+                        </button>
+                        <span className="text-[11px] text-slate-400 truncate max-w-[120px]">{selectedCandidate.am_name}</span>
+                      </div>
+
+                      {amImages.length > 0 ? (
+                        <div className="space-y-2">
+                          <div
+                            onClick={() => {
+                              setLightboxImageUrl(api.getImageFileUrl(amImages[0].id));
+                              setLightboxTitle(`AM: ${selectedCandidate.am_case_number} — ${amImages[0].image_type}`);
+                            }}
+                            className="relative group h-36 rounded-lg overflow-hidden bg-slate-900 border border-slate-800 flex items-center justify-center cursor-pointer"
+                          >
+                            <img
+                              src={api.getImageFileUrl(amImages[0].id)}
+                              alt="AM Photo"
+                              className="h-full w-full object-contain"
+                            />
+                            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                              <span className="text-xs text-white font-semibold flex items-center gap-1 bg-slate-900/80 px-2 py-1 rounded-lg border border-slate-700">
+                                <ZoomIn className="h-3.5 w-3.5" /> Enlarge
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                            <span>Type: {amImages[0].image_type}</span>
+                            <span className="text-emerald-400 font-mono">{amImages[0].human_review_status}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="h-36 rounded-lg border border-dashed border-slate-800 flex flex-col items-center justify-center text-slate-500 text-xs gap-1">
+                          <ImageIcon className="h-6 w-6 opacity-40" />
+                          <span>No reference photo uploaded</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* PM Image Card */}
+                    <div className="bg-slate-950 rounded-xl p-3 border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-semibold">
+                        <span className="text-indigo-400 font-mono">PM: {selectedPmNumber}</span>
+                        <span className="text-[11px] text-slate-400">Mortuary Observation</span>
+                      </div>
+
+                      {pmImages.length > 0 ? (
+                        <div className="space-y-2">
+                          <div
+                            onClick={() => {
+                              setLightboxImageUrl(api.getImageFileUrl(pmImages[0].id));
+                              setLightboxTitle(`PM: ${selectedPmNumber} — ${pmImages[0].image_type}`);
+                            }}
+                            className="relative group h-36 rounded-lg overflow-hidden bg-slate-900 border border-slate-800 flex items-center justify-center cursor-pointer"
+                          >
+                            <img
+                              src={api.getImageFileUrl(pmImages[0].id)}
+                              alt="PM Photo"
+                              className="h-full w-full object-contain"
+                            />
+                            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                              <span className="text-xs text-white font-semibold flex items-center gap-1 bg-slate-900/80 px-2 py-1 rounded-lg border border-slate-700">
+                                <ZoomIn className="h-3.5 w-3.5" /> Enlarge
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                            <span>Type: {pmImages[0].image_type}</span>
+                            <span className="text-emerald-400 font-mono">{pmImages[0].human_review_status}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="h-36 rounded-lg border border-dashed border-slate-800 flex flex-col items-center justify-center text-slate-500 text-xs gap-1">
+                          <ImageIcon className="h-6 w-6 opacity-40" />
+                          <span>No forensic photo attached</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-800">
                     <div>
@@ -311,6 +463,7 @@ export const Reconciliation: React.FC<ReconciliationProps> = ({
                       </button>
                     )}
                   </div>
+
 
                   {/* Concordance Table */}
                   <div className="overflow-x-auto">
@@ -536,6 +689,35 @@ export const Reconciliation: React.FC<ReconciliationProps> = ({
           </div>
         </div>
       )}
+
+      {/* Image Lightbox Modal */}
+      {lightboxImageUrl && (
+        <div
+          className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-[99] cursor-zoom-out"
+          onClick={() => setLightboxImageUrl(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] bg-slate-900 border border-slate-800 rounded-2xl p-2 shadow-2xl overflow-hidden">
+            <img
+              src={lightboxImageUrl}
+              alt="Full resolution forensic photo"
+              className="max-h-[85vh] max-w-full object-contain rounded-xl mx-auto"
+            />
+            <div className="absolute bottom-4 left-4 right-4 bg-slate-950/80 backdrop-blur-sm p-2.5 rounded-xl border border-slate-800 text-xs text-white flex items-center justify-between">
+              <span className="font-bold">{lightboxTitle || 'Forensic Photo Viewer'}</span>
+              <span className="font-mono text-sky-400">Click anywhere to dismiss</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Case Details Inspector Modal */}
+      {inspectedCaseId && (
+        <CaseDetailsModal
+          caseId={inspectedCaseId}
+          onClose={() => setInspectedCaseId(null)}
+        />
+      )}
     </div>
   );
 };
+

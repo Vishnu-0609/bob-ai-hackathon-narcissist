@@ -218,6 +218,13 @@ export interface EvidenceGraphNode {
   contradiction?: boolean;
   source?: string;
   source_type?: string;
+  image_id?: string;
+  gemini_model?: string;
+  sha256?: string;
+  human_review_status?: string;
+  timestamp?: string;
+  provenance?: Record<string, any>;
+  image_count?: number;
   details?: Record<string, any>;
 }
 
@@ -247,3 +254,101 @@ export interface CopilotMessage {
   tools_used?: Array<{ tool: string; parameters: Record<string, any>; result: any }>;
   suggested_actions?: string[];
 }
+
+export interface ClothingObservation {
+  item_type?: string;
+  color?: string;
+  pattern?: string;
+  description?: string;
+  status: 'OBSERVED' | 'INFERRED' | 'UNKNOWN';
+  confidence: number;
+  notes?: string;
+}
+
+export interface JewelleryObservation {
+  item_type?: string;
+  material_or_color?: string;
+  location?: string;
+  description?: string;
+  status: 'OBSERVED' | 'INFERRED' | 'UNKNOWN';
+  confidence: number;
+  notes?: string;
+}
+
+export interface TattooObservation {
+  description?: string;
+  location?: string;
+  design_motifs?: string[];
+  colors?: string[];
+  status: 'OBSERVED' | 'INFERRED' | 'UNKNOWN';
+  confidence: number;
+  notes?: string;
+}
+
+export interface ScarObservation {
+  description?: string;
+  location?: string;
+  mark_type?: string;
+  status: 'OBSERVED' | 'INFERRED' | 'UNKNOWN';
+  confidence: number;
+  notes?: string;
+}
+
+export interface PhysicalCharacteristicObservation {
+  attribute?: string;
+  value?: string;
+  status: 'OBSERVED' | 'INFERRED' | 'UNKNOWN';
+  confidence: number;
+  notes?: string;
+}
+
+export interface ImageQuality {
+  status: 'GOOD' | 'FAIR' | 'POOR' | 'DEGRADED';
+  occlusion: boolean;
+  occlusion_details?: string;
+  lighting?: string;
+  resolution_assessment?: string;
+}
+
+export interface ImageExtractionObservations {
+  clothing: ClothingObservation[];
+  jewellery: JewelleryObservation[];
+  tattoos: TattooObservation[];
+  scars_or_marks: ScarObservation[];
+  physical_characteristics: PhysicalCharacteristicObservation[];
+  visible_text: string[];
+  other_observations: string[];
+}
+
+export interface ImageExtractionPayload {
+  record_type: 'AM' | 'PM';
+  image_type: string;
+  observations: ImageExtractionObservations;
+  image_quality: ImageQuality;
+  summary?: string;
+  provenance?: Record<string, any>;
+}
+
+export interface ImageEvidence {
+  id: string;
+  incident_id: string;
+  am_id?: string;
+  pm_id?: string;
+  storage_path: string;
+  original_filename: string;
+  mime_type: string;
+  file_size: number;
+  sha256: string;
+  image_type: string;
+  gemini_model: string;
+  analysis_status: 'PENDING' | 'ANALYZING' | 'COMPLETED' | 'FAILED';
+  extraction_json: ImageExtractionPayload;
+  human_review_status: 'PENDING_REVIEW' | 'APPROVED' | 'MODIFIED_AND_APPROVED' | 'REJECTED';
+  reviewed_by?: string;
+  reviewed_at?: string;
+  uploaded_by: string;
+  uploaded_at: string;
+  created_at: string;
+  updated_at: string;
+}
+

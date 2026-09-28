@@ -1,68 +1,22 @@
 services:
-  api:
+  backend:
     build: ./backend
     environment:
       HOST: 0.0.0.0
-      PORT: 4000
-      DATABASE_URL: postgres://reconcile:reconcile@postgres:5432/reconcile
-      ALLOWED_ORIGIN: http://localhost:3000
-      OLLAMA_URL: http://ollama:11434
-      OLLAMA_TEXT_MODEL: granite4:3b
-      OLLAMA_VISION_MODEL: granite3.2-vision:2b
+      PORT: 8000
+      DATABASE_URL: sqlite:///./dvi.db
+      CORS_ORIGINS: '["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"]'
+      GEMINI_MODEL: gemini-2.5-flash
     ports:
-      - "4000:4000"
+      - "8000:8000"
+    volumes:
+      - ./backend/storage:/app/storage
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
     depends_on:
-      postgres:
-        condition: service_healthy
-      ollama:
-        condition: service_healthy
-      ollama-models:
-        condition: service_completed_successfully
+      - backend
     restart: unless-stopped
-
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-    restart: unless-stopped
-
-  ollama-models:
-    image: ollama/ollama:latest
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-    entrypoint: ["/bin/sh", "-c"]
-    command: ["ollama pull granite4:3b && ollama pull granite3.2-vision:2b"]
-    volumes:
-      - ollama-data:/root/.ollama
-    depends_on:
-      ollama:
-        condition: service_healthy
-    restart: "no"
-
-  postgres:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_DB: reconcile
-      POSTGRES_USER: reconcile
-      POSTGRES_PASSWORD: reconcile
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U reconcile -d reconcile"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-    restart: unless-stopped
-
-volumes:
-  ollama-data:
-  postgres-data:
