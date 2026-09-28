@@ -1,0 +1,2425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Post-Mortem Body Registry & Search (IBM Bob NLP)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #fafafa;
+      --card-bg: #ffffff;
+      --card-border: #e4e4e7;
+      --input-bg: #ffffff;
+      --primary: #000000;
+      --primary-hover: #27272a;
+      --accent: #000000;
+      --accent-purple: #18181b;
+      --ibm-blue: #000000;
+      --success: #18181b;
+      --danger: #18181b;
+      --danger-hover: #000000;
+      --text: #09090b;
+      --text-muted: #71717a;
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px 16px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    header {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .brand-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #000000;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      letter-spacing: -0.02em;
+    }
+    .brand-subtitle {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .body-count-badge {
+      background: #f4f4f5;
+      border: 1px solid var(--card-border);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      color: #000000;
+      font-weight: 600;
+    }
+
+    /* Buttons */
+    .btn {
+      background: var(--primary);
+      color: #ffffff;
+      border: 1px solid var(--primary);
+      border-radius: 6px;
+      padding: 9px 16px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+      text-decoration: none;
+    }
+    .btn:hover {
+      background: var(--primary-hover);
+      border-color: var(--primary-hover);
+    }
+    .btn:active {
+      transform: scale(0.98);
+    }
+    .btn-ai {
+      background: #000000;
+      color: #ffffff;
+      border: 1px solid #000000;
+    }
+    .btn-ai:hover {
+      background: #27272a;
+      border-color: #27272a;
+    }
+    .btn-outline {
+      background: #ffffff;
+      border: 1px solid #d4d4d8;
+      color: #18181b;
+    }
+    .btn-outline:hover {
+      background: #f4f4f5;
+      border-color: #18181b;
+      color: #000000;
+    }
+    .btn-danger {
+      background: #ffffff;
+      border: 1px solid #e4e4e7;
+      color: #18181b;
+    }
+    .btn-danger:hover {
+      background: #000000;
+      border-color: #000000;
+      color: #ffffff;
+    }
+    .btn-gemini {
+      background: #ffffff;
+      border: 1px solid #d4d4d8;
+      color: #18181b;
+      font-size: 0.82rem;
+      padding: 7px 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn-gemini:hover {
+      background: #f4f4f5;
+      border-color: #000000;
+      color: #000000;
+    }
+    .btn-gemini.active {
+      border-color: #000000;
+      background: #f4f4f5;
+      color: #000000;
+      font-weight: 600;
+    }
+    .ai-badge.gemini-active {
+      background: #000000;
+      border: 1px solid #000000;
+      color: #ffffff;
+    }
+
+    /* IBM Bob NLP Search Section */
+    .search-box-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .search-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .bob-nlp-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f4f4f5;
+      border: 1px solid #e4e4e7;
+      color: #09090b;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      letter-spacing: 0.2px;
+    }
+    .bob-nlp-badge span.dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #000000;
+      display: inline-block;
+    }
+    .bob-nlp-toggle-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .bob-nlp-toggle-wrapper input {
+      cursor: pointer;
+      accent-color: #000000;
+    }
+
+    .search-input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .search-input-inner {
+      position: relative;
+      flex: 1;
+      display: flex;
+      align-items: center;
+    }
+    .search-icon {
+      position: absolute;
+      left: 16px;
+      color: var(--text-muted);
+      font-size: 1.15rem;
+      pointer-events: none;
+      z-index: 2;
+    }
+    .search-input {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid #d4d4d8;
+      border-radius: 6px;
+      color: #000000;
+      padding: 13px 44px 13px 48px;
+      font-size: 0.98rem;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .search-input::placeholder {
+      color: #a1a1aa;
+    }
+    .search-input:focus {
+      border-color: #000000;
+      box-shadow: 0 0 0 1px #000000;
+    }
+    .search-clear-btn {
+      position: absolute;
+      right: 14px;
+      background: #f4f4f5;
+      border: 1px solid #d4d4d8;
+      color: #52525b;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      z-index: 3;
+    }
+    .search-clear-btn:hover {
+      background: #000000;
+      color: #ffffff;
+      border-color: #000000;
+    }
+    .btn-search {
+      background: #000000;
+      color: #ffffff;
+      font-weight: 600;
+      padding: 13px 24px;
+      font-size: 0.95rem;
+      border-radius: 6px;
+      border: 1px solid #000000;
+      white-space: nowrap;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.15s ease;
+    }
+    .btn-search:hover {
+      background: #27272a;
+      border-color: #27272a;
+      transform: translateY(-1px);
+    }
+    .btn-search:active {
+      transform: translateY(0);
+    }
+
+    /* NLP Suggestions row */
+    .nlp-suggestions-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      font-size: 0.78rem;
+    }
+    .nlp-prompt-hint {
+      color: var(--text-muted);
+      white-space: nowrap;
+      font-weight: 500;
+    }
+    .nlp-chip {
+      background: #ffffff;
+      border: 1px solid #e4e4e7;
+      color: #27272a;
+      padding: 3px 9px;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .nlp-chip:hover {
+      background: #f4f4f5;
+      border-color: #000000;
+      color: #000000;
+    }
+
+    /* Bob Intent Breakdown Bar */
+    .bob-intent-bar {
+      background: #f4f4f5;
+      border: 1px solid #e4e4e7;
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin-top: 12px;
+      font-size: 0.82rem;
+      color: #18181b;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .search-filters-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .filter-pills {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .filter-pill {
+      background: #ffffff;
+      border: 1px solid #d4d4d8;
+      color: #52525b;
+      padding: 5px 14px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-pill:hover {
+      background: #f4f4f5;
+      color: #000000;
+      border-color: #a1a1aa;
+    }
+    .filter-pill.active {
+      background: #000000;
+      border-color: #000000;
+      color: #ffffff;
+      font-weight: 600;
+    }
+    .search-status-text {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* Upload Form Card */
+    .upload-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 28px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+    .upload-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--card-border);
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .upload-card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #000000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: -0.01em;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .form-group.full {
+      grid-column: 1 / -1;
+    }
+    label {
+      font-size: 0.83rem;
+      font-weight: 600;
+      color: #18181b;
+    }
+    input[type="text"], input[type="password"], input[type="number"], select, textarea {
+      background: var(--input-bg);
+      border: 1px solid #d4d4d8;
+      border-radius: 6px;
+      color: #000000;
+      padding: 10px 14px;
+      font-size: 0.92rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input::placeholder, textarea::placeholder {
+      color: #a1a1aa;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: #000000;
+      box-shadow: 0 0 0 1px #000000;
+    }
+
+    /* Photo Upload Area */
+    .photo-dropzone {
+      border: 2px dashed #d4d4d8;
+      background: #fafafa;
+      border-radius: 6px;
+      padding: 24px 18px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
+    }
+    .photo-dropzone:hover {
+      border-color: #000000;
+      background: #f4f4f5;
+    }
+    .photo-dropzone input[type="file"] {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .dropzone-label {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    .dropzone-label strong {
+      color: #000000;
+    }
+
+    .preview-header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 12px;
+      font-size: 0.83rem;
+      color: var(--text-muted);
+    }
+
+    .preview-container {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .preview-card {
+      position: relative;
+      width: 90px;
+      height: 90px;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--card-border);
+      background: #f4f4f5;
+    }
+    .preview-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .preview-card .remove-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: rgba(0, 0, 0, 0.75);
+      color: #fff;
+      border: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      transition: background 0.15s;
+    }
+    .preview-card .remove-btn:hover {
+      background: #000000;
+    }
+    .preview-card .photo-idx {
+      position: absolute;
+      bottom: 2px;
+      left: 4px;
+      font-size: 0.65rem;
+      background: rgba(0, 0, 0, 0.75);
+      color: #fff;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    /* Live AI Extracted Features Preview Panel */
+    .extracted-features-preview {
+      background: #fafafa;
+      border: 1px solid #e4e4e7;
+      border-radius: 6px;
+      padding: 16px;
+      margin-top: 14px;
+      display: none;
+    }
+    .ai-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #f4f4f5;
+      border: 1px solid #d4d4d8;
+      color: #18181b;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .feature-chip-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+    .feat-tag {
+      background: #ffffff;
+      border: 1px solid #d4d4d8;
+      color: #18181b;
+      font-size: 0.76rem;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .feat-tag.acc {
+      background: #ffffff;
+      border-color: #d4d4d8;
+      color: #18181b;
+    }
+    .feat-tag.mark {
+      background: #ffffff;
+      border-color: #d4d4d8;
+      color: #18181b;
+    }
+    .color-swatch-list {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+    .color-swatch-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #ffffff;
+      border: 1px solid #e4e4e7;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      color: #18181b;
+    }
+    .color-circle {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 1px solid #d4d4d8;
+      display: inline-block;
+    }
+
+    /* Alert */
+    .alert-banner {
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      display: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    .alert-success {
+      background: #ffffff;
+      border: 1px solid #000000;
+      color: #000000;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .alert-error {
+      background: #ffffff;
+      border: 1px solid #71717a;
+      color: #000000;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    /* Bodies Grid */
+    .section-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #000000;
+      letter-spacing: -0.01em;
+    }
+
+    .bodies-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 20px;
+    }
+
+    .body-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+    .body-card:hover {
+      border-color: #000000;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+    }
+    .body-card.nlp-top-match {
+      border-left: 4px solid #000000;
+    }
+
+    .body-card-media {
+      width: 100%;
+      height: 190px;
+      background: #f4f4f5;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .body-card-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: opacity 0.2s;
+    }
+    .no-image-placeholder {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .body-tag-chip {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    .body-gender-chip {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+    }
+    .gender-male {
+      background: #000000;
+      color: #fff;
+    }
+    .gender-female {
+      background: #27272a;
+      color: #fff;
+    }
+    .gender-unknown {
+      background: #52525b;
+      color: #fff;
+    }
+
+    /* Accuracy Score Badges on Cards */
+    .card-bob-score-chip {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      color: #fff;
+      background: #000000;
+      font-size: 0.74rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .score-high {
+      background: #000000;
+      border: 1px solid #000000;
+      color: #fff;
+    }
+    .score-med {
+      background: #27272a;
+      border: 1px solid #27272a;
+      color: #fff;
+    }
+    .score-low {
+      background: #52525b;
+      border: 1px solid #52525b;
+      color: #fff;
+    }
+
+    .card-accuracy-panel {
+      background: #fafafa;
+      border: 1px solid #e4e4e7;
+      border-radius: 6px;
+      padding: 9px 12px;
+      margin-bottom: 10px;
+    }
+    .accuracy-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .accuracy-badge-pill {
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .acc-meter-track {
+      height: 6px;
+      background: #e4e4e7;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+    .acc-meter-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.4s ease;
+    }
+    .acc-fill-high {
+      background: #000000;
+    }
+    .acc-fill-med {
+      background: #3f3f46;
+    }
+    .acc-fill-low {
+      background: #71717a;
+    }
+
+    .image-counter-pill {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background: rgba(0, 0, 0, 0.75);
+      color: #fff;
+      font-size: 0.7rem;
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+    .image-dots-nav {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 4px;
+      background: rgba(0,0,0,0.6);
+      padding: 3px 6px;
+      border-radius: 999px;
+    }
+    .image-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.4);
+      cursor: pointer;
+    }
+    .image-dot.active {
+      background: #ffffff;
+      transform: scale(1.2);
+    }
+
+    .body-card-body {
+      padding: 16px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .body-location {
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: #000000;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .body-details-snippet {
+      font-size: 0.84rem;
+      color: #3f3f46;
+      line-height: 1.45;
+      background: #fafafa;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border-left: 3px solid #000000;
+      margin-bottom: 10px;
+      flex: 1;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* Bob NLP Rationale callout on card */
+    .card-nlp-rationale {
+      font-size: 0.78rem;
+      background: #f4f4f5;
+      border: 1px solid #e4e4e7;
+      color: #18181b;
+      padding: 6px 10px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      line-height: 1.4;
+    }
+
+    .card-extracted-chips {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .body-card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: auto;
+      padding-top: 10px;
+      border-top: 1px solid #f4f4f5;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+    .card-btn-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    /* Empty state */
+    .empty-state {
+      background: var(--card-bg);
+      border: 1px dashed #d4d4d8;
+      border-radius: var(--radius);
+      padding: 48px 24px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+    .empty-state h3 {
+      font-size: 1.15rem;
+      color: #000000;
+      margin-bottom: 6px;
+    }
+    .empty-state p {
+      font-size: 0.9rem;
+      margin-bottom: 16px;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(2px);
+      z-index: 999;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-card {
+      background: #ffffff;
+      border: 1px solid #e4e4e7;
+      border-radius: var(--radius);
+      max-width: 680px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 24px;
+      position: relative;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      color: #000000;
+    }
+    .modal-close-btn {
+      position: absolute;
+      top: 16px;
+      right: 18px;
+      background: transparent;
+      border: none;
+      color: #71717a;
+      font-size: 1.5rem;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .modal-close-btn:hover { color: #000000; }
+
+    .modal-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #000000;
+      margin-bottom: 4px;
+    }
+    .modal-gallery {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      margin: 16px 0;
+      padding-bottom: 8px;
+    }
+    .modal-gallery img {
+      max-height: 220px;
+      border-radius: 6px;
+      border: 1px solid #e4e4e7;
+      object-fit: cover;
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+    .modal-gallery img:hover {
+      transform: scale(1.02);
+    }
+    .modal-details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 16px 0;
+      font-size: 0.9rem;
+    }
+    .modal-field {
+      background: #fafafa;
+      padding: 10px 14px;
+      border-radius: 6px;
+      border: 1px solid #e4e4e7;
+    }
+    .modal-field.full {
+      grid-column: 1 / -1;
+    }
+    .modal-field span {
+      display: block;
+      font-size: 0.75rem;
+      color: #71717a;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    .modal-field strong {
+      color: #000000;
+      font-size: 0.92rem;
+    }
+
+    .modal-ai-panel {
+      background: #fafafa;
+      border: 1px solid #d4d4d8;
+      border-radius: 6px;
+      padding: 14px;
+      margin-top: 14px;
+    }
+    .modal-ai-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #000000;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .modal-bob-panel {
+      background: #fafafa;
+      border: 1px solid #000000;
+      border-radius: 6px;
+      padding: 14px;
+      margin-top: 14px;
+    }
+    .modal-bob-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #000000;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    @media (max-width: 640px) {
+      .modal-details-grid { grid-template-columns: 1fr; }
+      .header-actions { width: 100%; justify-content: space-between; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    
+    <!-- Top Header -->
+    <header>
+      <div>
+        <div class="brand-title">
+          <span>🗂️ Post-Mortem Body Registry</span>
+        </div>
+        <div class="brand-subtitle">Multi-image intake & IBM Bob NLP natural language search</div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-gemini" id="gemini-status-btn" onclick="openGeminiModal()" title="Configure Google Gemini Vision Model">
+          <span id="gemini-status-dot" style="width:8px; height:8px; border-radius:50%; background:#71717a; display:inline-block;"></span>
+          <span id="gemini-status-label">Gemini Vision: Local CLIP</span>
+          <span style="font-size:0.75rem; opacity:0.8;">⚙️</span>
+        </button>
+        <div class="body-count-badge">
+          <span id="badge-total-count">0</span> Bodies Recorded
+        </div>
+        <button class="btn" onclick="scrollToUpload()">
+          <span>+</span> Upload Body
+        </button>
+      </div>
+    </header>
+
+    <!-- Alert Box -->
+    <div id="alert-banner" class="alert-banner"></div>
+
+    <!-- PROMINENT SEARCH BAR (WITH IBM BOB NLP) -->
+    <div class="search-box-card">
+      <div class="search-header-row">
+        <div class="bob-nlp-badge">
+          <span class="dot"></span>
+          <span>IBM Bob NLP Engine</span>
+        </div>
+        <label class="bob-nlp-toggle-wrapper" title="Toggle between IBM Bob NLP semantic search and keyword matching">
+          <input type="checkbox" id="nlp-toggle" checked onchange="handleNlpToggleChange()" />
+          <span>Enable Bob NLP Semantic Search</span>
+        </label>
+      </div>
+
+      <div class="search-input-wrapper">
+        <div class="search-input-inner">
+          <span class="search-icon">🔍</span>
+          <input
+            type="text"
+            id="search-input"
+            class="search-input"
+            placeholder="Search bodies or ask in natural language... (e.g. 'white moncler polo' or 'male with full beard')"
+            oninput="handleSearchInput(event)"
+            onkeydown="handleSearchKeyDown(event)"
+            autocomplete="off"
+          />
+          <button id="search-clear-btn" class="search-clear-btn" onclick="clearSearch()" title="Clear search">✕</button>
+        </div>
+        <button type="button" id="search-submit-btn" class="btn-search" onclick="triggerSearchNow()" title="Search Bodies">
+          <span>🔍</span> Search
+        </button>
+      </div>
+
+      <!-- Quick NLP query suggestions -->
+      <div class="nlp-suggestions-row">
+        <span class="nlp-prompt-hint">💡 Try asking Bob:</span>
+        <button type="button" class="nlp-chip" onclick="applyNlpQuery('white moncler polo')">"white moncler polo"</button>
+        <button type="button" class="nlp-chip" onclick="applyNlpQuery('black blazer at nfsu auditorium')">"black blazer at nfsu"</button>
+        <button type="button" class="nlp-chip" onclick="applyNlpQuery('blue plaid shirt with full beard')">"blue plaid shirt with full beard"</button>
+        <button type="button" class="nlp-chip" onclick="applyNlpQuery('g-shock watch and glasses')">"g-shock watch and glasses"</button>
+      </div>
+
+      <!-- Live Bob Intent Summary Bar -->
+      <div id="bob-intent-bar" class="bob-intent-bar" style="display: none;">
+        <span>🧠</span>
+        <span id="bob-intent-text">Bob Intent: ...</span>
+      </div>
+
+      <div class="search-filters-row">
+        <div class="filter-pills">
+          <button class="filter-pill active" data-gender="all" onclick="setGenderFilter('all')">All</button>
+          <button class="filter-pill" data-gender="male" onclick="setGenderFilter('male')">Male</button>
+          <button class="filter-pill" data-gender="female" onclick="setGenderFilter('female')">Female</button>
+          <button class="filter-pill" data-gender="unknown" onclick="setGenderFilter('unknown')">Unknown</button>
+        </div>
+        <div id="search-status-text" class="search-status-text">
+          Loading bodies...
+        </div>
+      </div>
+    </div>
+
+    <!-- SIMPLE UPLOAD WORKFLOW WITH MULTI-IMAGE INTAKE -->
+    <div id="upload-section" class="upload-card">
+      <div class="upload-card-header">
+        <div class="upload-card-title">
+          <span>📝 Upload Post-Mortem Record</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span id="upload-gemini-status-tag" style="font-size: 0.78rem; color: var(--text-muted);">Vision Engine: Local CLIP</span>
+          <button type="button" class="btn btn-outline" style="padding: 3px 8px; font-size: 0.75rem;" onclick="openGeminiModal()">⚙️ Settings</button>
+        </div>
+      </div>
+
+      <form id="body-upload-form" onsubmit="handleUploadSubmit(event)">
+        <div class="form-grid">
+          
+          <!-- Multiple Photos dropzone -->
+          <div class="form-group full">
+            <label>Upload Multiple Images (Body, Clothing, Scars, Tattoos, Belongings)</label>
+            <div class="photo-dropzone">
+              <input type="file" id="upload-photos" multiple accept="image/*" onchange="handlePhotoSelect(event)" />
+              <div class="dropzone-label">
+                📷 <strong>Click to choose or drag & drop multiple photos</strong>
+                <div style="font-size:0.75rem; color: var(--text-muted); margin-top: 4px;">
+                  Supports multiple images: front view, garments, scars/marks, jewelry, personal effects
+                </div>
+              </div>
+            </div>
+
+            <!-- Preview and action toolbar -->
+            <div id="preview-header" class="preview-header-bar" style="display: none;">
+              <span id="photo-count-label">0 photos selected</span>
+              <button type="button" id="auto-extract-btn" class="btn btn-ai" style="padding: 5px 12px; font-size: 0.8rem;" onclick="triggerAutoExtract()">
+                <span>✨</span> Auto-Extract Features
+              </button>
+            </div>
+            
+            <div id="photo-previews" class="preview-container"></div>
+
+            <!-- Live Extracted Features Preview Panel -->
+            <div id="features-preview-panel" class="extracted-features-preview">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                <div class="ai-badge" id="ai-engine-badge">✨ Extracted Multi-Image Features</div>
+                <button type="button" class="btn btn-outline" style="padding: 3px 8px; font-size: 0.75rem;" onclick="applyExtractedToDetails()">
+                  ✓ Apply to Details
+                </button>
+              </div>
+
+              <div id="ai-detected-clothing-block" style="margin-bottom: 6px;">
+                <span style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Detected Clothing:</span>
+                <div id="ai-clothing-chips" class="feature-chip-row"></div>
+              </div>
+
+              <div id="ai-detected-accessories-block" style="margin-bottom: 6px;">
+                <span style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Detected Belongings & Jewelry:</span>
+                <div id="ai-accessories-chips" class="feature-chip-row"></div>
+              </div>
+
+              <div id="ai-detected-marks-block" style="margin-bottom: 6px;">
+                <span style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Detected Marks / Physical Cues:</span>
+                <div id="ai-marks-chips" class="feature-chip-row"></div>
+              </div>
+
+              <div id="ai-detected-colors-block" style="margin-bottom: 8px;">
+                <span style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Dominant Colors:</span>
+                <div id="ai-color-swatches" class="color-swatch-list"></div>
+              </div>
+
+              <div id="ai-suggested-gender-block" style="font-size:0.82rem; color:#18181b; margin-bottom: 6px;">
+                <span>Estimated Gender Presentation: </span>
+                <strong id="ai-suggested-gender-val" style="color:#000000;">-</strong>
+                <button type="button" class="btn btn-outline" style="padding: 1px 6px; font-size: 0.7rem; margin-left: 8px;" onclick="applySuggestedGender()">Use This</button>
+              </div>
+
+              <div style="font-size: 0.82rem; color: #3f3f46; background: #f4f4f5; border: 1px solid #e4e4e7; padding: 8px; border-radius: 4px; margin-top: 6px;" id="ai-summary-text">
+              </div>
+            </div>
+          </div>
+
+          <!-- Body Tag / ID -->
+          <div class="form-group">
+            <label>Body Tag / ID (Optional)</label>
+            <input type="text" id="upload-tag" placeholder="e.g. Body #12 or leave blank for auto-ID" />
+          </div>
+
+          <!-- Location Found -->
+          <div class="form-group">
+            <label>Location Found</label>
+            <input type="text" id="upload-location" placeholder="e.g. Bilaspur, Coach B4, Track site" />
+          </div>
+
+          <!-- Gender -->
+          <div class="form-group">
+            <label>Estimated Gender</label>
+            <select id="upload-gender">
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Unknown">Unknown / Indeterminate</option>
+            </select>
+          </div>
+
+          <!-- Age (Optional) -->
+          <div class="form-group">
+            <label>Estimated Age (Optional)</label>
+            <input type="text" id="upload-age" placeholder="e.g. 35 or 30-40" />
+          </div>
+
+          <!-- Identifying Details / Notes -->
+          <div class="form-group full">
+            <label>Identifying Details (Clothing, Scars, Tattoos, Belongings, Notes)</label>
+            <textarea
+              id="upload-details"
+              rows="3"
+              placeholder="e.g. White shirt, dark trousers, surgical scar on right abdomen, silver ring on index finger, sacred wrist thread... (or click Auto-Extract above!)"
+            ></textarea>
+          </div>
+
+        </div>
+
+        <div style="display:flex; justify-content: flex-end; gap: 10px;">
+          <button type="button" class="btn btn-outline" onclick="resetUploadForm()">Reset</button>
+          <button type="submit" id="upload-submit-btn" class="btn">
+            <span>✓</span> Upload Body Record
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- BODIES DIRECTORY -->
+    <div class="section-title-row">
+      <div class="section-title">
+        <span>Recorded Bodies</span>
+      </div>
+    </div>
+
+    <div id="bodies-grid" class="bodies-grid">
+      <!-- Injected via JavaScript -->
+    </div>
+
+    <!-- Empty State -->
+    <div id="empty-state" class="empty-state" style="display: none;">
+      <h3>No bodies found</h3>
+      <p id="empty-state-message">No body records match your search query.</p>
+      <button class="btn btn-outline" onclick="clearSearch()">Clear Search</button>
+    </div>
+
+  </div>
+
+  <!-- Detail Modal -->
+  <div id="detail-modal" class="modal-overlay" onclick="handleModalOverlayClick(event)">
+    <div class="modal-card">
+      <button class="modal-close-btn" onclick="closeModal()">&times;</button>
+      
+      <div class="modal-title" id="modal-tag">Body Details</div>
+      <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom: 12px;" id="modal-id">ID: PM-XXXXXX</div>
+
+      <!-- Multi-photo gallery -->
+      <div id="modal-gallery" class="modal-gallery"></div>
+
+      <div class="modal-details-grid">
+        <div class="modal-field">
+          <span>Location Found</span>
+          <strong id="modal-location">-</strong>
+        </div>
+        <div class="modal-field">
+          <span>Gender</span>
+          <strong id="modal-gender">-</strong>
+        </div>
+        <div class="modal-field">
+          <span>Estimated Age</span>
+          <strong id="modal-age">-</strong>
+        </div>
+        <div class="modal-field">
+          <span>Date Logged</span>
+          <strong id="modal-date">-</strong>
+        </div>
+        <div class="modal-field full">
+          <span>Identifying Details & Notes</span>
+          <p id="modal-details" style="color: #18181b; font-size: 0.9rem; margin-top: 4px; white-space: pre-wrap;">-</p>
+        </div>
+      </div>
+
+      <!-- Bob NLP Rationale in Modal if matched -->
+      <div id="modal-bob-panel" class="modal-bob-panel" style="display: none;">
+        <div class="modal-bob-title">
+          <span>🎯</span>
+          <span id="modal-bob-score-title">Match Accuracy: 98%</span>
+        </div>
+        <div style="height:6px; background:#e4e4e7; border-radius:999px; margin: 8px 0; overflow:hidden;">
+          <div id="modal-acc-bar-fill" style="height:100%; width:0%; border-radius:999px; transition: width 0.3s ease;"></div>
+        </div>
+        <p id="modal-bob-rationale" style="font-size: 0.88rem; color: #18181b; line-height: 1.45;"></p>
+      </div>
+
+      <!-- AI Extracted Features Section in Modal -->
+      <div id="modal-ai-section" class="modal-ai-panel" style="display: none;">
+        <div class="modal-ai-title" id="modal-ai-title-header">✨ AI Extracted Visual Features (from all uploaded images)</div>
+        <div id="modal-ai-content"></div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; flex-wrap: wrap; gap: 10px;">
+        <button id="modal-delete-btn" class="btn btn-danger">
+          <span>🗑️</span> Delete Record
+        </button>
+        <div style="display: flex; gap: 8px;">
+          <button id="modal-reextract-btn" class="btn btn-ai" onclick="handleModalReextract()">
+            <span>✨</span> Re-Extract with Gemini
+          </button>
+          <button class="btn btn-outline" onclick="closeModal()">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gemini Configuration Modal -->
+  <div id="gemini-modal" class="modal-overlay" onclick="handleGeminiModalOverlayClick(event)">
+    <div class="modal-card" style="max-width: 540px;">
+      <button class="modal-close-btn" onclick="closeGeminiModal()">&times;</button>
+      
+      <div class="modal-title" style="display: flex; align-items: center; gap: 8px;">
+        <span>✨ Google Gemini Vision Configuration</span>
+      </div>
+      <p style="font-size: 0.84rem; color: var(--text-muted); margin-bottom: 16px;">
+        Connect Google Gemini multimodal models to enable highly accurate forensic feature extraction across multiple evidence photos (garment brands, surgical scars, tattoos, jewelry, physical cues).
+      </p>
+
+      <div id="gemini-modal-alert" class="alert-banner" style="margin-bottom: 14px; font-size: 0.85rem; display: none;"></div>
+
+      <div style="background: #fafafa; border: 1px solid var(--card-border); border-radius: 8px; padding: 14px; margin-bottom: 16px; font-size: 0.84rem;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span style="color: var(--text-muted);">Current Status:</span>
+          <strong id="gemini-modal-status-text" style="color: #71717a;">Inactive (Local CLIP Fallback)</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span style="color: var(--text-muted);">Configured Key:</span>
+          <code id="gemini-modal-masked-key" style="color: #18181b; background: #f4f4f5; border: 1px solid #e4e4e7; padding: 2px 6px; border-radius: 4px;">Not Configured</code>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span style="color: var(--text-muted);">Target Model:</span>
+          <code id="gemini-modal-model-display" style="color: #000000; font-weight: 600;">gemini-2.5-flash</code>
+        </div>
+      </div>
+
+      <form id="gemini-config-form" onsubmit="handleSaveGeminiKey(event)">
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label for="gemini-api-key-input">Gemini API Key</label>
+          <div style="position: relative; display: flex; align-items: center;">
+            <input
+              type="password"
+              id="gemini-api-key-input"
+              placeholder="Paste your Gemini API key (AIzaSy...)"
+              required
+              style="width: 100%; padding-right: 40px;"
+            />
+            <button
+              type="button"
+              onclick="toggleGeminiKeyVisibility()"
+              style="position: absolute; right: 10px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem;"
+              title="Toggle visibility"
+            >👁️</button>
+          </div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+            Get a free Gemini API key at <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--accent); text-decoration: underline;">Google AI Studio</a>.
+          </span>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 20px;">
+          <label for="gemini-model-select">Target Gemini Model</label>
+          <select id="gemini-model-select">
+            <option value="gemini-3.1-flash-lite" selected>gemini-3.1-flash-lite (Fast & Highly Accurate Multimodal - Recommended)</option>
+            <option value="gemini-3.8-flash">gemini-3.8-flash (Latest Flagship Multimodal)</option>
+            <option value="gemini-3-flash-preview">gemini-3-flash-preview (Preview Multimodal)</option>
+            <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+          </select>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button type="button" class="btn btn-outline" onclick="closeGeminiModal()">Cancel</button>
+          <button type="submit" id="save-gemini-btn" class="btn btn-ai">
+            <span>💾</span> Save & Activate Gemini
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let allBodies = [];
+    let displayedBodies = [];
+    let currentGenderFilter = 'all';
+    let currentQuery = '';
+    let isNlpMode = true;
+    let selectedFiles = [];
+    let lastExtractedFeatures = null;
+    let searchDebounceTimer = null;
+    let geminiConfig = { gemini_configured: false, model: 'gemini-2.5-flash', masked_key: null };
+    let currentModalBodyId = null;
+
+    // Elements
+    const searchInput = document.getElementById('search-input');
+    const searchClearBtn = document.getElementById('search-clear-btn');
+    const searchStatusText = document.getElementById('search-status-text');
+    const badgeTotalCount = document.getElementById('badge-total-count');
+    const bodiesGrid = document.getElementById('bodies-grid');
+    const emptyState = document.getElementById('empty-state');
+    const alertBanner = document.getElementById('alert-banner');
+    const previewHeader = document.getElementById('preview-header');
+    const photoCountLabel = document.getElementById('photo-count-label');
+    const photoPreviews = document.getElementById('photo-previews');
+    const featuresPreviewPanel = document.getElementById('features-preview-panel');
+    const bobIntentBar = document.getElementById('bob-intent-bar');
+    const bobIntentText = document.getElementById('bob-intent-text');
+    const nlpToggle = document.getElementById('nlp-toggle');
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchBodies();
+      checkGeminiStatus();
+    });
+
+    function showAlert(msg, isSuccess = true) {
+      alertBanner.textContent = msg;
+      alertBanner.className = 'alert-banner ' + (isSuccess ? 'alert-success' : 'alert-error');
+      alertBanner.style.display = 'block';
+      setTimeout(() => { alertBanner.style.display = 'none'; }, 6000);
+    }
+
+    function scrollToUpload() {
+      const el = document.getElementById('upload-section');
+      el.scrollIntoView({ behavior: 'smooth' });
+      document.getElementById('upload-location').focus();
+    }
+
+    function handleNlpToggleChange() {
+      isNlpMode = nlpToggle.checked;
+      executeSearch();
+    }
+
+    // Fetch bodies from backend
+    async function fetchBodies() {
+      try {
+        const res = await fetch('/api/bodies');
+        if (!res.ok) throw new Error('Failed to fetch bodies');
+        allBodies = await res.json();
+        badgeTotalCount.textContent = allBodies.length;
+        displayedBodies = allBodies;
+        renderBodies();
+      } catch (err) {
+        console.error(err);
+        showAlert('Could not load bodies: ' + err.message, false);
+      }
+    }
+
+    // Search input handler with debounce
+    function handleSearchInput(e) {
+      currentQuery = e.target.value.trim();
+      searchClearBtn.style.display = currentQuery ? 'flex' : 'none';
+
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        executeSearch();
+      }, isNlpMode ? 300 : 100);
+    }
+
+    function handleSearchKeyDown(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        triggerSearchNow();
+      }
+    }
+
+    async function triggerSearchNow() {
+      clearTimeout(searchDebounceTimer);
+      currentQuery = searchInput.value.trim();
+      searchClearBtn.style.display = currentQuery ? 'flex' : 'none';
+
+      const btn = document.getElementById('search-submit-btn');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳</span> Searching...';
+      }
+
+      try {
+        await executeSearch();
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>🔍</span> Search';
+        }
+      }
+    }
+
+    function applyNlpQuery(queryText) {
+      searchInput.value = queryText;
+      currentQuery = queryText;
+      searchClearBtn.style.display = 'flex';
+      nlpToggle.checked = true;
+      isNlpMode = true;
+      executeSearch();
+    }
+
+    function clearSearch() {
+      searchInput.value = '';
+      currentQuery = '';
+      searchClearBtn.style.display = 'none';
+      bobIntentBar.style.display = 'none';
+      setGenderFilter('all');
+      displayedBodies = allBodies;
+      renderBodies();
+    }
+
+    function setGenderFilter(gender) {
+      currentGenderFilter = gender.toLowerCase();
+      document.querySelectorAll('.filter-pill').forEach(pill => {
+        pill.classList.toggle('active', pill.dataset.gender === currentGenderFilter);
+      });
+      executeSearch();
+    }
+
+    // Execute Search (Bob NLP or keyword)
+    async function executeSearch() {
+      if (!currentQuery) {
+        bobIntentBar.style.display = 'none';
+        displayedBodies = allBodies.filter(b => {
+          if (currentGenderFilter === 'all') return true;
+          return (b.gender || '').toLowerCase().includes(currentGenderFilter);
+        });
+        renderBodies();
+        return;
+      }
+
+      if (isNlpMode) {
+        searchStatusText.textContent = '🧠 Bob NLP analyzing query & vector embeddings...';
+        try {
+          const url = `/api/nlp-search?q=${encodeURIComponent(currentQuery)}`;
+          const res = await fetch(url);
+          if (res.ok) {
+            const data = await res.json();
+            
+            // Show Bob parsed intent
+            if (data.parsed_intent && data.parsed_intent.intent_summary) {
+              bobIntentText.textContent = `Bob Understood: ${data.parsed_intent.intent_summary}`;
+              bobIntentBar.style.display = 'flex';
+            } else {
+              bobIntentBar.style.display = 'none';
+            }
+
+            // Extract bodies and attach NLP scores
+            let list = data.results.map(r => {
+              const b = Object.assign({}, r.body);
+              b.nlp_score = r.nlp_score;
+              b.nlp_rationale = r.nlp_rationale;
+              return b;
+            });
+
+            // Gender filter
+            if (currentGenderFilter !== 'all') {
+              list = list.filter(b => (b.gender || '').toLowerCase().includes(currentGenderFilter));
+            }
+
+            displayedBodies = list;
+            renderBodies(true);
+            return;
+          }
+        } catch (err) {
+          console.error("NLP search error:", err);
+        }
+      }
+
+      // Fallback: fast local keyword search
+      bobIntentBar.style.display = 'none';
+      const qLower = currentQuery.toLowerCase();
+      displayedBodies = allBodies.filter(body => {
+        if (currentGenderFilter !== 'all') {
+          const g = (body.gender || '').toLowerCase();
+          if (!g.includes(currentGenderFilter)) return false;
+        }
+
+        const ef = body.extracted_features || {};
+        let efTexts = [];
+        if (ef.summary) efTexts.push(ef.summary);
+        if (ef.detected_clothing) efTexts.push(ef.detected_clothing.map(c => c.name || c).join(' '));
+        if (ef.detected_accessories) efTexts.push(ef.detected_accessories.map(a => a.name || a).join(' '));
+        if (ef.detected_marks) efTexts.push(ef.detected_marks.map(m => m.name || m).join(' '));
+        if (ef.detected_colors) efTexts.push(ef.detected_colors.map(col => col.name || col).join(' '));
+
+        const searchable = [
+          body.id,
+          body.tag,
+          body.location,
+          body.gender,
+          body.age,
+          body.details,
+          efTexts.join(' ')
+        ].join(' ').toLowerCase();
+
+        const tokens = qLower.split(/\s+/);
+        return tokens.every(tok => searchable.includes(tok));
+      });
+
+      renderBodies(false);
+    }
+
+    // Render bodies to DOM
+    function renderBodies(isNlpResults = false) {
+      if (currentQuery) {
+        searchStatusText.textContent = isNlpResults
+          ? `🎯 Bob NLP: Found ${displayedBodies.length} relevant record${displayedBodies.length !== 1 ? 's' : ''} (Accuracy Scores displayed)`
+          : `Found ${displayedBodies.length} of ${allBodies.length} bodies`;
+      } else {
+        searchStatusText.textContent = `Showing all ${displayedBodies.length} bodies`;
+      }
+
+      if (displayedBodies.length === 0) {
+        bodiesGrid.innerHTML = '';
+        emptyState.style.display = 'block';
+        document.getElementById('empty-state-message').textContent =
+          allBodies.length === 0
+            ? 'No bodies registered yet. Use the upload form above to add the first record.'
+            : (currentQuery ? `No bodies matched your query "${currentQuery}". Try adjusting keywords, clothing, or location.` : 'No bodies match the selected filters.');
+        return;
+      }
+
+      emptyState.style.display = 'none';
+      bodiesGrid.innerHTML = '';
+
+      displayedBodies.forEach(body => {
+        const card = createBodyCard(body);
+        bodiesGrid.appendChild(card);
+      });
+    }
+
+    function createBodyCard(body) {
+      const card = document.createElement('div');
+      const score = (body.nlp_score !== undefined && body.nlp_score !== null) ? body.nlp_score : null;
+      card.className = 'body-card' + (score && score >= 80 ? ' nlp-top-match' : '');
+
+      // Gender badge class
+      let genderClass = 'gender-unknown';
+      const g = (body.gender || '').toLowerCase();
+      if (g.includes('male') && !g.includes('female')) genderClass = 'gender-male';
+      else if (g.includes('female')) genderClass = 'gender-female';
+
+      const images = body.image_paths || [];
+      const hasImage = images.length > 0;
+      const firstImage = hasImage ? images[0] : '';
+
+      // Format date
+      let dateStr = 'Recently';
+      if (body.created_at) {
+        try {
+          const d = new Date(body.created_at);
+          dateStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        } catch (e) {}
+      }
+
+      // Extracted features chips
+      let chipsHtml = '';
+      const ef = body.extracted_features;
+      if (ef) {
+        if (ef.gemini_active || (ef.engine && ef.engine.includes('Gemini'))) {
+          chipsHtml += `<span class="feat-tag" style="background:#000000; border-color:#000000; color:#ffffff; font-weight:600;">✨ Gemini Vision</span>`;
+        }
+        if (ef.detected_clothing && ef.detected_clothing.length > 0) {
+          chipsHtml += `<span class="feat-tag">👕 ${ef.detected_clothing[0].name}</span>`;
+        }
+        if (ef.detected_accessories && ef.detected_accessories.length > 0) {
+          chipsHtml += `<span class="feat-tag acc">⌚ ${ef.detected_accessories[0].name}</span>`;
+        }
+        if (ef.detected_marks && ef.detected_marks.length > 0) {
+          chipsHtml += `<span class="feat-tag mark">✂️ ${ef.detected_marks[0].name}</span>`;
+        }
+        if (ef.detected_colors && ef.detected_colors.length > 0) {
+          const cNames = ef.detected_colors.slice(0, 2).map(c => c.name).join(', ');
+          chipsHtml += `<span class="feat-tag" style="background:#f4f4f5; border-color:#d4d4d8; color:#18181b;">🎨 ${cNames}</span>`;
+        }
+      }
+
+      // Bob NLP Accuracy Score & Panel
+      let nlpMediaBadge = '';
+      let nlpAccuracyPanel = '';
+      if (score !== null) {
+        const scoreClass = score >= 80 ? 'score-high' : (score >= 65 ? 'score-med' : 'score-low');
+        const fillClass = score >= 80 ? 'acc-fill-high' : (score >= 65 ? 'acc-fill-med' : 'acc-fill-low');
+
+        nlpMediaBadge = `<div class="card-bob-score-chip ${scoreClass}">🎯 ${score}% Accuracy</div>`;
+
+        nlpAccuracyPanel = `
+          <div class="card-accuracy-panel">
+            <div class="accuracy-header-row">
+              <span class="accuracy-badge-pill ${scoreClass}">🎯 ${score}% Accuracy Score</span>
+              <span style="font-size:0.75rem; color:#52525b; font-weight:600;">Bob NLP</span>
+            </div>
+            <div class="acc-meter-track">
+              <div class="acc-meter-fill ${fillClass}" style="width: ${Math.min(100, Math.max(5, score))}%;"></div>
+            </div>
+            ${body.nlp_rationale ? `<div style="font-size:0.78rem; color:#27272a; line-height:1.4;">${body.nlp_rationale}</div>` : ''}
+          </div>
+        `;
+      }
+
+      card.innerHTML = `
+        <div class="body-card-media" id="card-media-${body.id}">
+          ${hasImage 
+            ? `<img id="card-img-${body.id}" src="${firstImage}" alt="${body.tag}" onerror="this.parentElement.innerHTML='<div class=\\'no-image-placeholder\\'><span>📷</span><span>Photo Unavailable</span></div>'" />`
+            : `<div class="no-image-placeholder"><span>📷</span><span>No Photo Provided</span></div>`
+          }
+          <div class="body-tag-chip">${body.tag || body.id}</div>
+          <div class="body-gender-chip ${genderClass}">${body.gender || 'Unknown'}</div>
+          ${nlpMediaBadge}
+
+          ${images.length > 1 ? `
+            <div class="image-counter-pill">📷 ${images.length} photos</div>
+            <div class="image-dots-nav">
+              ${images.map((_, idx) => `
+                <div class="image-dot ${idx === 0 ? 'active' : ''}" onclick="switchCardImage(event, '${body.id}', ${idx})" title="Photo ${idx+1}"></div>
+              `).join('')}
+            </div>
+          ` : ''}
+        </div>
+
+        <div class="body-card-body">
+          <div class="body-location">
+            <span>📍</span>
+            <span>${body.location || 'Unspecified Location'}</span>
+          </div>
+
+          ${nlpAccuracyPanel}
+
+          <div class="body-details-snippet">
+            ${body.details || 'No distinctive details recorded'}
+          </div>
+
+          ${chipsHtml ? `<div class="card-extracted-chips">${chipsHtml}</div>` : ''}
+
+          <div class="body-card-footer">
+            <span>${dateStr}</span>
+            <div class="card-btn-group">
+              <button class="btn btn-outline" style="padding: 4px 10px; font-size: 0.78rem;" onclick="openModal('${body.id}')">
+                Details ${images.length > 1 ? `(${images.length})` : ''}
+              </button>
+              <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.78rem;" title="Delete body" onclick="handleDeleteBody('${body.id}')">
+                🗑️
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      return card;
+    }
+
+    // Switch image on card thumbnail
+    function switchCardImage(e, bodyId, imgIdx) {
+      e.stopPropagation();
+      const body = displayedBodies.find(b => b.id === bodyId) || allBodies.find(b => b.id === bodyId);
+      if (!body || !body.image_paths || !body.image_paths[imgIdx]) return;
+
+      const imgEl = document.getElementById(`card-img-${bodyId}`);
+      if (imgEl) imgEl.src = body.image_paths[imgIdx];
+
+      const parent = e.target.parentElement;
+      if (parent) {
+        parent.querySelectorAll('.image-dot').forEach((dot, idx) => {
+          dot.classList.toggle('active', idx === imgIdx);
+        });
+      }
+    }
+
+    // Photo selection and preview
+    function handlePhotoSelect(e) {
+      const newFiles = Array.from(e.target.files);
+      selectedFiles = selectedFiles.concat(newFiles);
+      renderSelectedPreviews();
+    }
+
+    function removeSelectedFile(index) {
+      selectedFiles.splice(index, 1);
+      renderSelectedPreviews();
+    }
+
+    function renderSelectedPreviews() {
+      photoPreviews.innerHTML = '';
+      if (selectedFiles.length === 0) {
+        previewHeader.style.display = 'none';
+        featuresPreviewPanel.style.display = 'none';
+        return;
+      }
+
+      previewHeader.style.display = 'flex';
+      photoCountLabel.textContent = `${selectedFiles.length} photo${selectedFiles.length > 1 ? 's' : ''} selected`;
+
+      selectedFiles.forEach((file, idx) => {
+        const reader = new FileReader();
+        const card = document.createElement('div');
+        card.className = 'preview-card';
+
+        reader.onload = (ev) => {
+          card.innerHTML = `
+            <img src="${ev.target.result}" alt="Preview ${idx+1}" />
+            <button type="button" class="remove-btn" onclick="removeSelectedFile(${idx})" title="Remove photo">&times;</button>
+            <div class="photo-idx">#${idx+1}</div>
+          `;
+        };
+        reader.readAsDataURL(file);
+        photoPreviews.appendChild(card);
+      });
+    }
+
+    // Auto-extract features preview
+    async function triggerAutoExtract() {
+      if (selectedFiles.length === 0) {
+        showAlert('Please select at least 1 image to extract features.', false);
+        return;
+      }
+
+      const btn = document.getElementById('auto-extract-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span> Analyzing with AI...';
+
+      const fd = new FormData();
+      selectedFiles.forEach(f => fd.append('images', f));
+
+      try {
+        const res = await fetch('/api/extract-features', {
+          method: 'POST',
+          body: fd
+        });
+
+        if (!res.ok) throw new Error('Feature extraction failed');
+        const data = await res.json();
+        lastExtractedFeatures = data;
+
+        displayFeaturesPreview(data);
+        showAlert(`✨ Extracted features across ${selectedFiles.length} image(s)!`);
+      } catch (err) {
+        showAlert('Error extracting features: ' + err.message, false);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>✨</span> Auto-Extract Features';
+      }
+    }
+
+    function displayFeaturesPreview(data) {
+      featuresPreviewPanel.style.display = 'block';
+
+      // Update engine badge
+      const engineBadge = document.getElementById('ai-engine-badge');
+      if (engineBadge) {
+        if (data.gemini_active || (data.engine && data.engine.includes('Gemini'))) {
+          engineBadge.textContent = `✨ ${data.engine || 'Gemini 2.5 Flash'} Multimodal Vision`;
+          engineBadge.className = 'ai-badge gemini-active';
+        } else {
+          engineBadge.textContent = `✨ Extracted Features (${data.engine || 'Local CLIP'})`;
+          engineBadge.className = 'ai-badge';
+        }
+      }
+
+      // Clothing
+      const clDiv = document.getElementById('ai-clothing-chips');
+      clDiv.innerHTML = '';
+      if (data.detected_clothing && data.detected_clothing.length > 0) {
+        data.detected_clothing.forEach(c => {
+          clDiv.innerHTML += `<span class="feat-tag">👕 ${c.name} (${c.confidence}%)</span>`;
+        });
+        document.getElementById('ai-detected-clothing-block').style.display = 'block';
+      } else {
+        document.getElementById('ai-detected-clothing-block').style.display = 'none';
+      }
+
+      // Accessories
+      const accDiv = document.getElementById('ai-accessories-chips');
+      accDiv.innerHTML = '';
+      if (data.detected_accessories && data.detected_accessories.length > 0) {
+        data.detected_accessories.forEach(a => {
+          accDiv.innerHTML += `<span class="feat-tag acc">⌚ ${a.name} (${a.confidence}%)</span>`;
+        });
+        document.getElementById('ai-detected-accessories-block').style.display = 'block';
+      } else {
+        document.getElementById('ai-detected-accessories-block').style.display = 'none';
+      }
+
+      // Marks
+      const mDiv = document.getElementById('ai-marks-chips');
+      mDiv.innerHTML = '';
+      if (data.detected_marks && data.detected_marks.length > 0) {
+        data.detected_marks.forEach(m => {
+          mDiv.innerHTML += `<span class="feat-tag mark">✂️ ${m.name} (${m.confidence}%)</span>`;
+        });
+        document.getElementById('ai-detected-marks-block').style.display = 'block';
+      } else {
+        document.getElementById('ai-detected-marks-block').style.display = 'none';
+      }
+
+      // Colors
+      const colDiv = document.getElementById('ai-color-swatches');
+      colDiv.innerHTML = '';
+      if (data.detected_colors && data.detected_colors.length > 0) {
+        data.detected_colors.forEach(col => {
+          colDiv.innerHTML += `
+            <div class="color-swatch-item">
+              <span class="color-circle" style="background:${col.hex};"></span>
+              <span>${col.name}</span>
+            </div>
+          `;
+        });
+        document.getElementById('ai-detected-colors-block').style.display = 'block';
+      } else {
+        document.getElementById('ai-detected-colors-block').style.display = 'none';
+      }
+
+      // Suggested Gender
+      const gVal = document.getElementById('ai-suggested-gender-val');
+      gVal.textContent = data.suggested_gender || 'Unknown';
+
+      // Summary
+      document.getElementById('ai-summary-text').textContent = data.summary || '';
+    }
+
+    function applyExtractedToDetails() {
+      if (!lastExtractedFeatures || !lastExtractedFeatures.summary) return;
+      const detailsBox = document.getElementById('upload-details');
+      const existing = detailsBox.value.trim();
+      if (existing) {
+        detailsBox.value = existing + '\n[AI Features]: ' + lastExtractedFeatures.summary;
+      } else {
+        detailsBox.value = lastExtractedFeatures.summary;
+      }
+      showAlert('✓ Applied extracted features to details textarea.');
+    }
+
+    function applySuggestedGender() {
+      if (!lastExtractedFeatures || !lastExtractedFeatures.suggested_gender) return;
+      const g = lastExtractedFeatures.suggested_gender;
+      if (g === 'Male' || g === 'Female') {
+        document.getElementById('upload-gender').value = g;
+        showAlert(`✓ Set gender to ${g}`);
+      }
+    }
+
+    function resetUploadForm() {
+      document.getElementById('body-upload-form').reset();
+      selectedFiles = [];
+      lastExtractedFeatures = null;
+      renderSelectedPreviews();
+    }
+
+    // Upload Submission
+    async function handleUploadSubmit(e) {
+      e.preventDefault();
+      const submitBtn = document.getElementById('upload-submit-btn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Processing & Extracting Features...';
+
+      const fd = new FormData();
+      const tagVal = document.getElementById('upload-tag').value.trim();
+      const locVal = document.getElementById('upload-location').value.trim();
+      const genVal = document.getElementById('upload-gender').value;
+      const ageVal = document.getElementById('upload-age').value.trim();
+      const detVal = document.getElementById('upload-details').value.trim();
+
+      if (tagVal) fd.append('tag', tagVal);
+      if (locVal) fd.append('location', locVal);
+      if (genVal) fd.append('gender', genVal);
+      if (ageVal) fd.append('age', ageVal);
+      if (detVal) fd.append('details', detVal);
+
+      // Append all selected files
+      selectedFiles.forEach(file => {
+        fd.append('images', file);
+      });
+
+      try {
+        const res = await fetch('/api/bodies', {
+          method: 'POST',
+          body: fd
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Upload failed');
+        }
+
+        const newBody = await res.json();
+        showAlert(`✓ Successfully recorded body (${newBody.tag || newBody.id}) with features extracted!`);
+        resetUploadForm();
+        await fetchBodies();
+
+        // Scroll to bodies directory
+        document.getElementById('bodies-grid').scrollIntoView({ behavior: 'smooth' });
+      } catch (err) {
+        showAlert('Error uploading body: ' + err.message, false);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span>✓</span> Upload Body Record';
+      }
+    }
+
+    // Delete Body
+    async function handleDeleteBody(bodyId) {
+      if (!confirm(`Are you sure you want to delete body record ${bodyId}?`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/bodies/${bodyId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete');
+        showAlert(`Deleted body record ${bodyId}`);
+        closeModal();
+        await fetchBodies();
+      } catch (err) {
+        showAlert('Error deleting: ' + err.message, false);
+      }
+    }
+
+    // Modal
+    function openModal(bodyId) {
+      currentModalBodyId = bodyId;
+      const body = displayedBodies.find(b => b.id === bodyId) || allBodies.find(b => b.id === bodyId);
+      if (!body) return;
+
+      document.getElementById('modal-tag').textContent = body.tag || body.id;
+      document.getElementById('modal-id').textContent = 'System ID: ' + body.id;
+      document.getElementById('modal-location').textContent = body.location || 'Unspecified';
+      document.getElementById('modal-gender').textContent = body.gender || 'Unknown';
+      document.getElementById('modal-age').textContent = body.age ? `${body.age} yrs` : 'Not specified';
+      
+      let dateStr = 'Unknown';
+      if (body.created_at) {
+        try {
+          dateStr = new Date(body.created_at).toLocaleString();
+        } catch (e) {}
+      }
+      document.getElementById('modal-date').textContent = dateStr;
+      document.getElementById('modal-details').textContent = body.details || 'No distinctive details recorded';
+
+      // Gallery of all photos
+      const gal = document.getElementById('modal-gallery');
+      gal.innerHTML = '';
+      if (body.image_paths && body.image_paths.length > 0) {
+        body.image_paths.forEach((p, idx) => {
+          const img = document.createElement('img');
+          img.src = p;
+          img.alt = `${body.tag} Photo ${idx+1}`;
+          img.title = `Photo ${idx+1} (Click to open full-size)`;
+          img.onclick = () => window.open(p, '_blank');
+          gal.appendChild(img);
+        });
+        gal.style.display = 'flex';
+      } else {
+        gal.style.display = 'none';
+      }
+
+      // Re-extract button state in modal
+      const reextractBtn = document.getElementById('modal-reextract-btn');
+      if (reextractBtn) {
+        if (!body.image_paths || body.image_paths.length === 0) {
+          reextractBtn.style.display = 'none';
+        } else {
+          reextractBtn.style.display = 'inline-flex';
+          reextractBtn.innerHTML = '<span>✨</span> Re-Extract with Gemini';
+          reextractBtn.disabled = false;
+        }
+      }
+
+      // Bob NLP section in Modal
+      const bobSec = document.getElementById('modal-bob-panel');
+      const fillEl = document.getElementById('modal-acc-bar-fill');
+      if (body.nlp_score !== undefined && body.nlp_score !== null) {
+        document.getElementById('modal-bob-score-title').textContent = `🎯 Match Accuracy: ${body.nlp_score}%`;
+        document.getElementById('modal-bob-rationale').textContent = body.nlp_rationale || 'High semantic compatibility with your natural language search query.';
+        if (fillEl) {
+          fillEl.style.width = `${Math.min(100, Math.max(5, body.nlp_score))}%`;
+          if (body.nlp_score >= 80) {
+            fillEl.style.background = '#000000';
+          } else if (body.nlp_score >= 65) {
+            fillEl.style.background = '#3f3f46';
+          } else {
+            fillEl.style.background = '#71717a';
+          }
+        }
+        bobSec.style.display = 'block';
+      } else {
+        bobSec.style.display = 'none';
+      }
+
+      // AI Extracted Features Section in Modal
+      const aiSec = document.getElementById('modal-ai-section');
+      const aiCont = document.getElementById('modal-ai-content');
+      const ef = body.extracted_features;
+
+      const titleHeader = document.getElementById('modal-ai-title-header');
+      if (titleHeader) {
+        const engineTxt = ef && ef.engine ? `<span style="font-size:0.75rem; background:#f4f4f5; border:1px solid #e4e4e7; color:#18181b; padding:2px 7px; border-radius:4px; margin-left:8px; font-weight:normal; text-transform:none;">Engine: ${ef.engine}</span>` : '';
+        titleHeader.innerHTML = `✨ AI Extracted Forensic Features ${engineTxt}`;
+      }
+
+      if (ef) {
+        let contentHtml = '';
+
+        if (ef.detected_clothing && ef.detected_clothing.length > 0) {
+          contentHtml += `
+            <div style="margin-bottom:8px;">
+              <span style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Detected Clothing:</span>
+              <div class="feature-chip-row">
+                ${ef.detected_clothing.map(c => `<span class="feat-tag">👕 ${c.name} (${c.confidence}%)</span>`).join('')}
+              </div>
+            </div>
+          `;
+        }
+
+        if (ef.detected_accessories && ef.detected_accessories.length > 0) {
+          contentHtml += `
+            <div style="margin-bottom:8px;">
+              <span style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Belongings & Jewelry:</span>
+              <div class="feature-chip-row">
+                ${ef.detected_accessories.map(a => `<span class="feat-tag acc">⌚ ${a.name} (${a.confidence}%)</span>`).join('')}
+              </div>
+            </div>
+          `;
+        }
+
+        if (ef.detected_marks && ef.detected_marks.length > 0) {
+          contentHtml += `
+            <div style="margin-bottom:8px;">
+              <span style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Marks & Anatomical Cues:</span>
+              <div class="feature-chip-row">
+                ${ef.detected_marks.map(m => `<span class="feat-tag mark">✂️ ${m.name} (${m.confidence}%)</span>`).join('')}
+              </div>
+            </div>
+          `;
+        }
+
+        if (ef.detected_colors && ef.detected_colors.length > 0) {
+          contentHtml += `
+            <div style="margin-bottom:8px;">
+              <span style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Extracted Color Palette:</span>
+              <div class="color-swatch-list">
+                ${ef.detected_colors.map(col => `
+                  <div class="color-swatch-item">
+                    <span class="color-circle" style="background:${col.hex};"></span>
+                    <span>${col.name} (${col.hex})</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }
+
+        if (ef.summary) {
+          contentHtml += `
+            <div style="font-size:0.83rem; color:#18181b; background:#f4f4f5; border:1px solid #e4e4e7; padding:8px 10px; border-radius:6px; margin-top:8px;">
+              <strong>Forensic Summary:</strong> ${ef.summary}
+            </div>
+          `;
+        }
+
+        aiCont.innerHTML = contentHtml || '<p style="color:var(--text-muted); font-size:0.85rem;">No distinct features detected.</p>';
+        aiSec.style.display = 'block';
+      } else {
+        aiSec.style.display = 'none';
+      }
+
+      // Delete button in modal
+      const delBtn = document.getElementById('modal-delete-btn');
+      delBtn.onclick = () => handleDeleteBody(body.id);
+
+      document.getElementById('detail-modal').style.display = 'flex';
+    }
+
+    // Re-extract features for modal body
+    async function handleModalReextract() {
+      if (!currentModalBodyId) return;
+      const body = displayedBodies.find(b => b.id === currentModalBodyId) || allBodies.find(b => b.id === currentModalBodyId);
+      if (!body) return;
+
+      if (!body.image_paths || body.image_paths.length === 0) {
+        showAlert('This body has no photos uploaded to analyze.', false);
+        return;
+      }
+
+      const btn = document.getElementById('modal-reextract-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span> Analyzing with Gemini...';
+
+      try {
+        const res = await fetch(`/api/bodies/${currentModalBodyId}/re-extract`, {
+          method: 'POST'
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Re-extraction failed');
+        }
+
+        const data = await res.json();
+        const updatedBody = data.body;
+
+        // Update in memory collections
+        const idxAll = allBodies.findIndex(b => b.id === currentModalBodyId);
+        if (idxAll !== -1) allBodies[idxAll] = updatedBody;
+        const idxDisp = displayedBodies.findIndex(b => b.id === currentModalBodyId);
+        if (idxDisp !== -1) displayedBodies[idxDisp] = updatedBody;
+
+        showAlert(`✨ Features successfully re-extracted for ${updatedBody.tag || updatedBody.id}!`);
+        openModal(currentModalBodyId);
+        renderBodies(isNlpMode && currentQuery.trim().length > 0);
+      } catch (err) {
+        showAlert('Error during re-extraction: ' + err.message, false);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>✨</span> Re-Extract with Gemini';
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('detail-modal').style.display = 'none';
+    }
+
+    function handleModalOverlayClick(e) {
+      if (e.target.id === 'detail-modal') {
+        closeModal();
+      }
+    }
+
+    // ==========================================
+    // GEMINI CONFIGURATION LOGIC
+    // ==========================================
+    async function checkGeminiStatus() {
+      try {
+        const res = await fetch('/api/config/gemini-status');
+        if (!res.ok) return;
+        geminiConfig = await res.json();
+
+        const btn = document.getElementById('gemini-status-btn');
+        const dot = document.getElementById('gemini-status-dot');
+        const label = document.getElementById('gemini-status-label');
+        const uploadTag = document.getElementById('upload-gemini-status-tag');
+
+        if (geminiConfig.gemini_configured) {
+          btn.classList.add('active');
+          dot.style.background = '#000000';
+          dot.style.boxShadow = 'none';
+          label.textContent = `Gemini Vision: Active (${geminiConfig.model})`;
+          if (uploadTag) {
+            uploadTag.textContent = `Vision Engine: Google Gemini (${geminiConfig.model})`;
+            uploadTag.style.color = '#000000';
+          }
+        } else {
+          btn.classList.remove('active');
+          dot.style.background = '#71717a';
+          dot.style.boxShadow = 'none';
+          label.textContent = 'Gemini Vision: Local CLIP (Configure)';
+          if (uploadTag) {
+            uploadTag.textContent = 'Vision Engine: Local CLIP (Click Settings to enable Gemini)';
+            uploadTag.style.color = 'var(--text-muted)';
+          }
+        }
+
+        // Update modal info
+        const modalStatusText = document.getElementById('gemini-modal-status-text');
+        const modalMaskedKey = document.getElementById('gemini-modal-masked-key');
+        const modalModelDisplay = document.getElementById('gemini-modal-model-display');
+        const modelSelect = document.getElementById('gemini-model-select');
+
+        if (modalStatusText) {
+          modalStatusText.textContent = geminiConfig.gemini_configured ? 'Active (Gemini Vision Connected)' : 'Inactive (Local CLIP Fallback)';
+          modalStatusText.style.color = geminiConfig.gemini_configured ? '#000000' : '#71717a';
+        }
+        if (modalMaskedKey) {
+          modalMaskedKey.textContent = geminiConfig.masked_key || 'Not Configured';
+        }
+        if (modalModelDisplay) {
+          modalModelDisplay.textContent = geminiConfig.model || 'gemini-2.5-flash';
+        }
+        if (modelSelect && geminiConfig.model) {
+          modelSelect.value = geminiConfig.model;
+        }
+      } catch (err) {
+        console.error('Failed to check Gemini status:', err);
+      }
+    }
+
+    function openGeminiModal() {
+      const modal = document.getElementById('gemini-modal');
+      const alertBox = document.getElementById('gemini-modal-alert');
+      alertBox.style.display = 'none';
+      modal.style.display = 'flex';
+      setTimeout(() => {
+        const input = document.getElementById('gemini-api-key-input');
+        if (input) input.focus();
+      }, 50);
+    }
+
+    function closeGeminiModal() {
+      document.getElementById('gemini-modal').style.display = 'none';
+    }
+
+    function handleGeminiModalOverlayClick(e) {
+      if (e.target.id === 'gemini-modal') {
+        closeGeminiModal();
+      }
+    }
+
+    function toggleGeminiKeyVisibility() {
+      const input = document.getElementById('gemini-api-key-input');
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+
+    async function handleSaveGeminiKey(e) {
+      e.preventDefault();
+      const keyInput = document.getElementById('gemini-api-key-input');
+      const modelSelect = document.getElementById('gemini-model-select');
+      const saveBtn = document.getElementById('save-gemini-btn');
+      const alertBox = document.getElementById('gemini-modal-alert');
+
+      const apiKey = keyInput.value.trim();
+      const modelName = modelSelect.value;
+
+      if (!apiKey || apiKey.length < 8) {
+        alertBox.textContent = 'Please enter a valid Gemini API key.';
+        alertBox.className = 'alert-banner alert-error';
+        alertBox.style.display = 'block';
+        return;
+      }
+
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<span>⏳</span> Saving & Verifying...';
+
+      try {
+        const res = await fetch('/api/config/gemini-key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_key: apiKey, model_name: modelName })
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Failed to configure Gemini key');
+        }
+
+        const data = await res.json();
+        showAlert(`✓ Google Gemini API successfully configured for model '${modelName}'!`);
+        keyInput.value = '';
+        closeGeminiModal();
+        await checkGeminiStatus();
+      } catch (err) {
+        alertBox.textContent = err.message;
+        alertBox.className = 'alert-banner alert-error';
+        alertBox.style.display = 'block';
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<span>💾</span> Save & Activate Gemini';
+      }
+    }
+
+    // Hotkey: press '/' or 'Ctrl+K' to focus search, Escape to close modals
+    document.addEventListener('keydown', (e) => {
+      if ((e.key === '/' && document.activeElement !== searchInput && document.activeElement.tagName !== 'TEXTAREA') ||
+          (e.ctrlKey && e.key.toLowerCase() === 'k')) {
+        e.preventDefault();
+        searchInput.focus();
+        searchInput.select();
+      } else if (e.key === 'Escape') {
+        const geminiModal = document.getElementById('gemini-modal');
+        if (geminiModal && geminiModal.style.display === 'flex') {
+          closeGeminiModal();
+        } else {
+          closeModal();
+        }
+      }
+    });
+  </script>
+</body>
+</html>
