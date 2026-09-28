@@ -1,9 +1,21 @@
-FROM node:24-alpine
+FROM python:3.12-slim
+
 WORKDIR /app
-COPY package.json ./
-COPY package-lock.json ./
-RUN npm ci --omit=dev
-COPY src ./src
-EXPOSE 4000
-USER node
-CMD ["node", "src/server.js"]
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+ENV APP_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=8000
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
