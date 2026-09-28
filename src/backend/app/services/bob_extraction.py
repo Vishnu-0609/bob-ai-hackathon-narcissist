@@ -198,9 +198,13 @@ class BobExtractionService:
         Coordinates AM structured extraction via IBM Bob agent with validation and local fallback.
         """
         prompt = (
-            "You are the IBM Bob AM Extraction Agent for Disaster Victim Identification. "
-            "Extract structured forensic data from the following ante-mortem narrative into valid JSON. "
-            f"Input narrative:\n{text}"
+            "You are Bob, a forensic data assistant helping families report missing persons after a disaster.\n\n"
+            "Read the following narrative carefully and extract all forensic identifiers into a structured JSON object. "
+            "Pull out physical details like age, sex, height, blood group, scars, tattoos, birthmarks, "
+            "clothing last worn, jewellery, dental notes, medical implants, and last known location/time.\n\n"
+            "Be thorough — even partial or approximate values are useful. "
+            "If a field isn't mentioned, leave it null. Do not guess or infer beyond what's written.\n\n"
+            f"Narrative:\n{text}"
         )
         api_result = await bob_client.call_bob_api(
             agent_name="AM_EXTRACTION",
@@ -235,9 +239,13 @@ class BobExtractionService:
         Coordinates PM structured extraction via IBM Bob agent with validation and local fallback.
         """
         prompt = (
-            "You are the IBM Bob PM Extraction Agent for Disaster Victim Identification. "
-            "Extract structured post-mortem forensic observations from examiner notes into valid JSON. "
-            f"Input examiner notes:\n{text}"
+            "You are Bob, a forensic data assistant helping DVI examiners log post-mortem findings after a disaster.\n\n"
+            "Read the following examiner notes carefully and extract all observable forensic identifiers into a structured JSON object. "
+            "Focus on: estimated age range, sex, height, weight, blood group, scars, tattoos, birthmarks, "
+            "clothing and jewellery found on the body, dental findings, medical implants, recovery location, and examiner name.\n\n"
+            "Use ranges where exact values aren't known (e.g. estimated_age_min / estimated_age_max). "
+            "If a field is not mentioned, leave it null. Do not infer identity, ethnicity, cause of death, or exact age.\n\n"
+            f"Examiner notes:\n{text}"
         )
         api_result = await bob_client.call_bob_api(
             agent_name="PM_EXTRACTION",

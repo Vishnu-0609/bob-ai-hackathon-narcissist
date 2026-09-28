@@ -23,64 +23,86 @@ class BobRationaleService:
         contradicted_fields = [item.get("field_name") for item in contradictions if item.get("field_name")]
         unknown_fields = [item.get("field_name") for item in unknown if item.get("field_name")]
 
-        paragraphs = []
+        target_name = f" — *{am_name}*" if am_name and am_name != "Unknown" else ""
 
-        # Intro
-        target_name = f" ({am_name})" if am_name and am_name != "Unknown" else ""
-        paragraphs.append(
-            f"Candidate profile {am_num}{target_name} is ranked with a deterministic match score of {score}/100 "
-            f"(Evidence Quality: {quality}) for post-mortem record {pm_num}."
-        )
+        # Score badge
+        if score >= 80:
+            score_label = "🟢 Strong Candidate"
+        elif score >= 50:
+            score_label = "🟡 Moderate Candidate"
+        else:
+            score_label = "🔴 Weak Candidate"
 
-        # Supporting Evidence
+        lines = []
+
+        # Header
+        lines.append(f"## Match Summary: {am_num}{target_name} ↔ {pm_num}")
+        lines.append(f"> **Score: {score}/100** &nbsp;|&nbsp; {score_label} &nbsp;|&nbsp; Evidence Quality: **{quality}**")
+        lines.append("")
+
+        # Supporting evidence
         if matched_fields:
-            evidence_summary = []
+            lines.append("### ✅ Supporting Evidence")
             for item in supporting:
                 f_name = item.get("field_name", "")
                 am_val = item.get("am_value", "")
                 pm_val = item.get("pm_value", "")
+                label = f_name.replace("_", " ").title()
                 if f_name == "scars":
-                    evidence_summary.append(f"anatomical scar correlation ({am_val})")
+                    detail = f"Scar pattern on record matches — *{am_val}*"
                 elif f_name == "tattoos":
-                    evidence_summary.append(f"matching tattoo features ({am_val})")
+                    detail = f"Tattoo features align — *{am_val}*"
                 elif f_name == "dental":
-                    evidence_summary.append(f"concordant odontological findings ({am_val})")
+                    detail = f"Odontological findings are concordant — *{am_val}*"
                 elif f_name in ("sex", "blood_group"):
-                    evidence_summary.append(f"congruent {f_name.replace('_', ' ')} ({am_val})")
+                    detail = f"{label} is consistent — `{am_val}`"
                 elif f_name in ("age", "height"):
-                    evidence_summary.append(f"compatible stature/age ({am_val} vs {pm_val})")
+                    detail = f"{label} falls within compatible range — AM `{am_val}` vs PM `{pm_val}`"
                 elif f_name == "clothing":
-                    evidence_summary.append(f"matching recovered clothing ({am_val})")
+                    detail = f"Recovered clothing matches reported description — *{am_val}*"
                 else:
-                    evidence_summary.append(f"aligned {f_name.replace('_', ' ')}")
-
-            paragraphs.append(
-                "Primary supporting evidence includes: " + "; ".join(evidence_summary) + "."
-            )
+                    detail = f"{label} is aligned between records"
+                lines.append(f"- {detail}")
+            lines.append("")
+        else:
+            lines.append("### ✅ Supporting Evidence")
+            lines.append("- No direct matching attributes were identified in this comparison.")
+            lines.append("")
 
         # Contradictions
+        lines.append("### ⚠️ Contradictions")
         if contradicted_fields:
-            contra_notes = [f"{item.get('field_name')}: {item.get('notes')}" for item in contradictions if item.get("notes")]
-            paragraphs.append(
-                "CRITICAL CONTRADICTIONS NOTED: " + "; ".join(contra_notes) + ". "
-                "This discrepancy must be resolved prior to reconciliation."
-            )
+            for item in contradictions:
+                f_name = item.get("field_name", "").replace("_", " ").title()
+                note = item.get("notes", "Discrepancy observed")
+                lines.append(f"- **{f_name}:** {note}")
+            lines.append("")
+            lines.append("> 🔴 **These discrepancies must be resolved before this case can proceed to reconciliation.**")
         else:
-            paragraphs.append("No direct anatomical or serological contradictions were detected.")
+            lines.append("- No anatomical or biological contradictions detected.")
+        lines.append("")
 
-        # Missing Evidence
+        # Missing evidence
         if unknown_fields:
-            missing_names = [f.replace("_", " ") for f in unknown_fields[:5]]
-            paragraphs.append(
-                f"Missing or unobserved fields in one or both records include: {', '.join(missing_names)}. "
-                "The match is non-conclusive until secondary forensic confirmation (such as comparative dental, DNA, or fingerprints) is verified."
+            lines.append("### 🔍 Missing / Unverified Evidence")
+            missing_names = [f.replace("_", " ").title() for f in unknown_fields[:6]]
+            for m in missing_names:
+                lines.append(f"- {m}")
+            lines.append("")
+            lines.append(
+                "> This match remains **non-conclusive** until secondary forensic confirmation "
+                "(e.g. DNA, comparative dental, or fingerprints) is completed."
             )
+            lines.append("")
 
-        paragraphs.append(
-            "Note: This rationale is an automated decision-support summary. Final identification remains an authorized human forensic decision."
+        # Disclaimer
+        lines.append("---")
+        lines.append(
+            "*⚖️ This is an automated decision-support summary only. "
+            "Final identification is a human forensic authority decision and cannot be made by this system.*"
         )
 
-        return "\n\n".join(paragraphs)
+        return "\n".join(lines)
 
     @staticmethod
     async def generate_rationale(
@@ -91,10 +113,17 @@ class BobRationaleService:
         Sends structured evidence package to IBM Bob Rationale Agent with fallback.
         """
         prompt = (
-            "You are the IBM Bob DVI Forensic Rationale Agent. "
-            "Write an objective, clear forensic rationale based ONLY on the provided structured comparison data. "
-            "Never invent facts, probabilities, or identify the deceased autonomously. "
-            "Explicitly distinguish: 1) observed matching evidence, 2) contradictions, and 3) missing data."
+            "You are Bob, a forensic assistant helping DVI coordinators understand candidate match results.\n\n"
+            "Your job is to explain — clearly and conversationally — why a particular ante-mortem (AM) profile "
+            "is ranked as a candidate for a post-mortem (PM) record, based strictly on the structured data provided.\n\n"
+            "Format your response using markdown with these sections:\n"
+            "1. **Match Summary** — one short sentence describing the overall picture\n"
+            "2. **What lines up** — bullet list of matching evidence points\n"
+            "3. **Points of concern** — any contradictions or red flags\n"
+            "4. **What's still missing** — evidence gaps that need follow-up\n"
+            "5. **Next steps** — 1-2 recommended actions for the coordinator\n\n"
+            "Do not invent facts. Do not assign probability of identity. "
+            "Only reference what is explicitly in the data."
         )
 
         api_result = await bob_client.call_bob_api(
