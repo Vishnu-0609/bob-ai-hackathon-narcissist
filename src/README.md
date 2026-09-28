@@ -12,25 +12,16 @@ your project:
 src/
   backend/        ← API server code
   frontend/       ← UI code
-  shared/         ← Shared utilities/types
-```
+  SIMPLE WORKFLOW/         ← simple demo working```
 
-### Data / AI Project
-```
-src/
-  data/           ← Data ingestion / preprocessing
-  models/         ← ML model code
-  api/            ← Serving layer
-  notebooks/      ← Jupyter notebooks (exploration)
-```
 
-### CLI / Script-based Tool
-```
-src/
-  cli/            ← CLI entry points
-  lib/            ← Core logic
-  utils/          ← Helpers
-```
+##sart workflow
+cd src
+cd SIMPLE WORKFLOW
+pip install -r requirement.txt
+python run.py
+
+then open http://127.0.0.1:8000/
 
 ## Important Files to Include
 
