@@ -10,6 +10,8 @@ import {
   AlertTriangle,
   ChevronDown,
   RefreshCw,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Incident, User } from '../types';
@@ -20,6 +22,8 @@ interface NavbarProps {
   activeIncident: Incident | null;
   onSelectIncident: (inc: Incident) => void;
   incidents: Incident[];
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -28,6 +32,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeIncident,
   onSelectIncident,
   incidents,
+  theme,
+  onToggleTheme,
 }) => {
   const [bobStatus, setBobStatus] = useState<any>(null);
   const [auditVerified, setAuditVerified] = useState<boolean | null>(null);
@@ -53,7 +59,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="h-16 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 flex items-center justify-between sticky top-0 z-30">
+    <header className="app-navbar h-16 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 flex items-center justify-between sticky top-0 z-30">
       {/* Brand & System Title */}
       <div className="flex items-center gap-3">
         <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
@@ -112,6 +118,15 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Right Controls: AI status, Audit Chain badge, Profile */}
       <div className="flex items-center gap-3">
+        <button
+          onClick={onToggleTheme}
+          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+          className="theme-toggle p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition"
+        >
+          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </button>
+
         {/* IBM Bob status pill */}
         <div
           title={bobStatus?.message || 'IBM Bob Status'}
