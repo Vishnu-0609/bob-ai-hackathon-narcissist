@@ -85,7 +85,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ activeIncident, onNavigate
   return (
     <div className="space-y-6">
       {/* Incident Command Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border border-slate-800 p-6 shadow-xl">
+      <div className="relative overflow-hidden rounded-lg bg-slate-900 border border-slate-800 p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
@@ -101,7 +101,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ activeIncident, onNavigate
           {/* Flagship Demo Quick Action Button */}
           <button
             onClick={() => onNavigate('reconciliation', 'PM-017')}
-            className="flex items-center gap-3 px-5 py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-sky-500/20 transition group"
+            className="flex items-center gap-3 px-5 py-3 rounded-md bg-sky-600 hover:bg-sky-500 text-white font-semibold text-sm transition group"
           >
             <div>
               <div className="text-left font-bold leading-tight">Flagship Case: Reconcile PM-017</div>

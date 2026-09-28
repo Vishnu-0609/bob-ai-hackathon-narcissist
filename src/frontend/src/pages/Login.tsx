@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { Shield, Lock, User as UserIcon, AlertCircle, ArrowRight, UserCheck } from 'lucide-react';
+import { Shield, Lock, User as UserIcon, AlertCircle, ArrowRight, UserCheck, Sun, Moon } from 'lucide-react';
 import { api } from '../services/api';
 import { User } from '../types';
 
 interface LoginProps {
   onLoginSuccess: (user: User) => void;
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
 }
 
-export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
+export const Login: React.FC<LoginProps> = ({ onLoginSuccess, theme, onToggleTheme }) => {
   const [username, setUsername] = useState('coordinator');
   const [password, setPassword] = useState('coordpassword123');
   const [loading, setLoading] = useState(false);
@@ -36,15 +38,19 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 relative overflow-hidden">
-      {/* Background ambient lighting */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-sky-600/10 blur-[120px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[300px] bg-indigo-600/10 blur-[100px] rounded-full pointer-events-none" />
-
+    <div className="login-screen min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 relative overflow-hidden">
+      <button
+        onClick={onToggleTheme}
+        title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+        aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+        className="theme-toggle absolute top-5 right-5 p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition"
+      >
+        {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      </button>
       <div className="w-full max-w-md z-10">
         {/* Logo & Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex h-14 w-14 rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-600 items-center justify-center shadow-xl shadow-sky-500/20 mb-3 border border-sky-400/30">
+          <div className="inline-flex h-12 w-12 rounded-md bg-sky-600 items-center justify-center mb-3">
             <Shield className="h-8 w-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">DVI-BRIDGE</h1>
@@ -57,7 +63,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         </div>
 
         {/* Login Card */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-2xl backdrop-blur-sm">
+        <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center gap-2 text-rose-300 text-xs">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
@@ -109,7 +115,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-semibold py-2.5 px-4 rounded-lg text-sm shadow-lg shadow-sky-500/25 transition flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full mt-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold py-2.5 px-4 rounded-md text-sm transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {loading ? (
                 <span>Authenticating...</span>

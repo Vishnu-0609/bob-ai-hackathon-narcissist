@@ -1,50 +1,117 @@
 @import "tailwindcss";
 
+:root {
+  color-scheme: dark;
+  --page: #111315;
+  --surface: #191c1f;
+  --surface-raised: #212529;
+  --line: #30363b;
+  --copy: #e7e9eb;
+  --copy-muted: #9ca3a9;
+  --chart-grid: #30363b;
+  --chart-tooltip: #191c1f;
+  --accent: #3478b2;
+  --color-slate-950: #111315;
+  --color-slate-900: #191c1f;
+  --color-slate-850: #1c2023;
+  --color-slate-800: #212529;
+  --color-slate-750: #292e32;
+  --color-slate-700: #30363b;
+  --color-slate-600: #4c565e;
+  --color-slate-500: #74808a;
+  --color-slate-400: #9ca7af;
+  --color-slate-300: #bdc5cb;
+  --color-slate-200: #d5dade;
+  --color-slate-100: #e7e9eb;
+  --color-sky-400: #72a9d5;
+  --color-sky-500: #4d8fca;
+  --color-sky-600: #3478b2;
+  --color-indigo-300: #9abddd;
+  --color-indigo-400: #72a9d5;
+  --color-indigo-500: #4d8fca;
+  --color-indigo-600: #3478b2;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --page: #f6f7f8;
+  --surface: #ffffff;
+  --surface-raised: #eff1f2;
+  --line: #dce0e3;
+  --copy: #20262b;
+  --copy-muted: #5f6b73;
+  --chart-grid: #dce0e3;
+  --chart-tooltip: #ffffff;
+  --accent: #194e84;
+  --color-slate-950: #f6f7f8;
+  --color-slate-900: #ffffff;
+  --color-slate-850: #f9fafb;
+  --color-slate-800: #eff1f2;
+  --color-slate-750: #e7eaec;
+  --color-slate-700: #dce0e3;
+  --color-slate-600: #b3bbc1;
+  --color-slate-500: #859099;
+  --color-slate-400: #68747c;
+  --color-slate-300: #4e5a62;
+  --color-slate-200: #354149;
+  --color-slate-100: #1d252b;
+  --color-sky-400: #245b91;
+  --color-sky-500: #1f5b99;
+  --color-sky-600: #194e84;
+  --color-indigo-300: #245b91;
+  --color-indigo-400: #245b91;
+  --color-indigo-500: #1f5b99;
+  --color-indigo-600: #194e84;
+}
+
 @layer base {
-  :root {
-    --bg-primary: #0b0f19;
-    --bg-surface: #111827;
-    --bg-surface-elevated: #1f2937;
-    --bg-surface-subtle: #1e293b;
-    --border-subtle: #374151;
-    --border-strong: #4b5563;
-    --text-primary: #f9fafb;
-    --text-secondary: #9ca3af;
-    --text-muted: #6b7280;
-    --accent-blue: #38bdf8;
-    --accent-emerald: #34d399;
-    --accent-amber: #fbbf24;
-    --accent-rose: #f87171;
-    --accent-indigo: #818cf8;
+  * {
+    border-color: var(--line);
   }
 
   body {
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    min-width: 320px;
+    min-height: 100vh;
+    background: var(--page);
+    color: var(--copy);
+    font-family: "Segoe UI", "Helvetica Neue", sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    min-height: 100vh;
+    transition: background-color 180ms ease, color 180ms ease;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid #0284c7;
+    outline-offset: 2px;
   }
 }
 
-/* Custom scrollbar for dense data tables */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: var(--page);
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 3px;
+  background: var(--color-slate-600);
+  border: 2px solid var(--page);
+  border-radius: 8px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: var(--color-slate-500);
 }
 
-/* Pulse glow animation for status badges */
 @keyframes pulse-subtle {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
@@ -52,4 +119,123 @@
 
 .animate-pulse-subtle {
   animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+:root[data-theme="light"] .text-white {
+  color: var(--copy);
+}
+
+:root[data-theme="light"] .bg-sky-500.text-white,
+:root[data-theme="light"] .bg-sky-600.text-white,
+:root[data-theme="light"] .bg-indigo-600.text-white,
+:root[data-theme="light"] .bg-emerald-600.text-white,
+:root[data-theme="light"] .bg-amber-600.text-white,
+:root[data-theme="light"] [class*="from-sky-"].text-white,
+:root[data-theme="light"] [class*="from-sky-"] .text-white {
+  color: #ffffff;
+}
+
+:root[data-theme="light"] .bg-sky-500 .text-white,
+:root[data-theme="light"] .bg-sky-600 .text-white,
+:root[data-theme="light"] .bg-indigo-600 .text-white {
+  color: #ffffff;
+}
+
+:root .bg-gradient-to-r,
+:root .bg-gradient-to-br {
+  background-image: none;
+  background-color: var(--accent);
+}
+
+.app-shell .rounded-xl,
+.app-shell .rounded-2xl {
+  border-radius: 4px;
+}
+
+.app-shell .shadow-lg,
+.app-shell .shadow-xl,
+.app-shell .shadow-2xl {
+  box-shadow: none;
+}
+
+.login-screen .shadow-lg,
+.login-screen .shadow-xl,
+.login-screen .shadow-2xl {
+  box-shadow: none;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: var(--chart-grid);
+}
+
+.recharts-default-tooltip {
+  background-color: var(--chart-tooltip) !important;
+  border-color: var(--line) !important;
+  color: var(--copy) !important;
+}
+
+@media (max-width: 960px) {
+  .app-navbar {
+    gap: 12px;
+  }
+
+  .app-sidebar {
+    width: 56px;
+    overflow: hidden;
+  }
+
+  .app-sidebar > div:first-child {
+    padding: 8px 6px;
+  }
+
+  .app-sidebar > div:first-child > div:first-child {
+    display: none;
+  }
+
+  .app-sidebar button {
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .app-sidebar button > div > span,
+  .app-sidebar button > span,
+  .app-sidebar > div:last-child {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-navbar {
+    height: auto;
+    min-height: 64px;
+    flex-wrap: wrap;
+    padding-block: 8px;
+  }
+
+  .app-navbar > div:first-child p {
+    display: none;
+  }
+
+  .app-navbar > div:nth-child(2) {
+    order: 3;
+    width: 100%;
+  }
+
+  .app-navbar > div:nth-child(2) button {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .app-navbar > div:last-child {
+    gap: 4px;
+  }
+
+  .app-sidebar {
+    width: 48px;
+  }
+
+  .app-main {
+    padding: 16px;
+  }
 }

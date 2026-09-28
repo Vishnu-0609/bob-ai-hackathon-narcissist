@@ -15,6 +15,10 @@ import { AuditTrail } from './pages/AuditTrail';
 import { Evaluation } from './pages/Evaluation';
 
 export function App() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const savedTheme = localStorage.getItem('dvi-bridge-theme');
+    return savedTheme === 'light' ? 'light' : 'dark';
+  });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -26,6 +30,11 @@ export function App() {
   useEffect(() => {
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('dvi-bridge-theme', theme);
+  }, [theme]);
 
   const checkAuth = async () => {
     const token = api.getToken();
@@ -86,11 +95,17 @@ export function App() {
   }
 
   if (!currentUser) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <Login
+        onLoginSuccess={handleLoginSuccess}
+        theme={theme}
+        onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      />
+    );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col text-slate-100">
+    <div className="app-shell min-h-screen bg-slate-950 flex flex-col text-slate-100">
       {/* Top Command Navbar */}
       <Navbar
         currentUser={currentUser}
@@ -98,15 +113,17 @@ export function App() {
         activeIncident={activeIncident}
         onSelectIncident={(inc) => setActiveIncident(inc)}
         incidents={incidents}
+        theme={theme}
+        onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
       />
 
       {/* Main App Body */}
-      <div className="flex flex-1">
+      <div className="app-layout flex flex-1">
         {/* Left Navigation Sidebar */}
         <Sidebar currentTab={currentTab} onSelectTab={setCurrentTab} />
 
         {/* Content View Container */}
-        <main className="flex-1 p-6 overflow-y-auto max-h-[calc(100vh-4rem)]">
+        <main className="app-main flex-1 p-6 overflow-y-auto max-h-[calc(100vh-4rem)]">
           <div className="max-w-7xl mx-auto">
             {currentTab === 'dashboard' && (
               <Dashboard
