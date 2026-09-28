@@ -10,7 +10,7 @@
 
 team:
   name: "Narcissist"                             # REQUIRED — e.g., "Orion Squad"
-  track: "TRACK 1 · FORENSIC SCIENCE"                            # REQUIRED — one of: AI | DevOps | Sustainability | Open
+  track: "AI"                            # REQUIRED — one of: AI | DevOps | Sustainability | Open
   lead:
     name: "Vishnu Mandlesara"                           # REQUIRED — e.g., "Alice Chen"
     email: "mandlesaravishnu06092004@gmail.com"                          # REQUIRED — e.g., "alice.chen@ibm.com"
